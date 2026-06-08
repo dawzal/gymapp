@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel główny - GymApp</title>
+</head>
+<body>
+    <h1>Witaj, {{ request.user.username }}! 💪</h1>
+    <p>Jesteś zalogowany w GymApp.</p>
+    <a href="{% url 'wylogowanie' %}">Wyloguj się</a>
+</body>
+</html>

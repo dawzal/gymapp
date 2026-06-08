@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="pl">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Rejestracja - GymApp</title>
+</head>
+
+<body>
+    <h1>Utwórz konto</h1>
+
+    {% if messages %}
+    {% for message in messages %}
+    <p>{{ message }}</p>
+    {% endfor %}
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        {{ formularz.as_p }}
+        <button type="submit">Zarejestruj się</button>
+    </form>
+
+    <p>Masz już konto? <a href="{% url 'logowanie' %}">Zaloguj się</a></p>
+</body>
+
+</html>
