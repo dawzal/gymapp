@@ -1,12 +1,45 @@
-<!DOCTYPE html>
-<html lang="pl">
-<head>
-    <meta charset="UTF-8">
-    <title>Panel główny - GymApp</title>
-</head>
-<body>
-    <h1>Witaj, {{ request.user.username }}! 💪</h1>
-    <p>Jesteś zalogowany w GymApp.</p>
-    <a href="{% url 'wylogowanie' %}">Wyloguj się</a>
-</body>
-</html>
+{% extends 'base.html' %}
+
+{% block tytul %}Panel główny - GymApp{% endblock %}
+
+{% block zawartosc %}
+<div class="row">
+    <div class="col-12">
+        <h2>Witaj, {{ request.user.username }}! 💪</h2>
+        <p class="text-muted">Co dzisiaj trenujesz?</p>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h1>🏋️</h1>
+                <h5 class="card-title">Plany treningowe</h5>
+                <p class="card-text">Twórz i zarządzaj planami</p>
+                <a href="#" class="btn btn-dark">Przejdź</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h1>📋</h1>
+                <h5 class="card-title">Baza ćwiczeń</h5>
+                <p class="card-text">Przeglądaj i dodawaj ćwiczenia</p>
+                <a href="#" class="btn btn-dark">Przejdź</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h1>📊</h1>
+                <h5 class="card-title">Kalkulator 1RM</h5>
+                <p class="card-text">Oblicz swój maksymalny ciężar</p>
+                <a href="#" class="btn btn-dark">Przejdź</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
