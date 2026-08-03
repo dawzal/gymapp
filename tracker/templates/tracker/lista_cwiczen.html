@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+
+{% block tytul %}Baza ćwiczeń - GymApp{% endblock %}
+
+{% block zawartosc %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Baza ćwiczeń</h2>
+    <a href="{% url 'dodaj_cwiczenie' %}" class="btn btn-dark">+ Dodaj ćwiczenie</a>
+</div>
+
+<div class="mb-4">
+    <a href="{% url 'lista_cwiczen' %}"
+        class="btn btn-sm {% if not kategoria %}btn-dark{% else %}btn-outline-dark{% endif %}">
+        Wszystkie
+    </a>
+    {% for klucz, nazwa in kategorie %}
+    <a href="{% url 'lista_cwiczen' %}?kategoria={{ klucz }}"
+        class="btn btn-sm {% if kategoria == klucz %}btn-dark{% else %}btn-outline-dark{% endif %}">
+        {{ nazwa }}
+    </a>
+    {% endfor %}
+</div>
+
+{% if cwiczenia %}
+<div class="row">
+    {% for cwiczenie in cwiczenia %}
+    <div class="col-md-4 mb-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">{{ cwiczenie.nazwa }}</h5>
+                <span class="badge bg-secondary mb-2">{{ cwiczenie.get_kategoria_display }}</span>
+                {% if cwiczenie.opis %}
+                <p class="card-text text-muted">{{ cwiczenie.opis|truncatechars:100 }}</p>
+                {% endif %}
+            </div>
+            <div class="card-footer text-muted small">
+                {% if cwiczenie.dodane_przez %}
+                Dodane przez: {{ cwiczenie.dodane_przez.username }}
+                {% else %}
+                Ćwiczenie domyślne
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info">
+    Brak ćwiczeń w tej kategorii. <a href="{% url 'dodaj_cwiczenie' %}">Dodaj pierwsze!</a>
+</div>
+{% endif %}
+{% endblock %}
