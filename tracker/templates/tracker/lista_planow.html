@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+
+{% block tytul %}Plany treningowe - GymApp{% endblock %}
+
+{% block zawartosc %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Plany treningowe</h2>
+    <a href="{% url 'dodaj_plan' %}" class="btn btn-dark">+ Nowy plan</a>
+</div>
+
+<h4>Moje plany</h4>
+{% if moje_plany %}
+<div class="row mb-4">
+    {% for plan in moje_plany %}
+    <div class="col-md-4 mb-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">{{ plan.nazwa }}</h5>
+                {% if plan.opis %}
+                <p class="card-text text-muted">{{ plan.opis|truncatechars:80 }}</p>
+                {% endif %}
+                <p class="card-text">
+                    <small class="text-muted">
+                        Dni treningowe: {{ plan.dni.count }}
+                    </small>
+                </p>
+            </div>
+            <div class="card-footer">
+                <a href="{% url 'szczegoly_planu' plan.pk %}" class="btn btn-dark btn-sm">Zobacz plan</a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info mb-4">
+    Nie masz jeszcze żadnych planów. <a href="{% url 'dodaj_plan' %}">Utwórz pierwszy plan!</a>
+</div>
+{% endif %}
+
+{% if publiczne_plany %}
+<h4>Plany innych użytkowników</h4>
+<div class="row">
+    {% for plan in publiczne_plany %}
+    <div class="col-md-4 mb-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">{{ plan.nazwa }}</h5>
+                {% if plan.opis %}
+                <p class="card-text text-muted">{{ plan.opis|truncatechars:80 }}</p>
+                {% endif %}
+                <p class="card-text">
+                    <small class="text-muted">
+                        Autor: {{ plan.uzytkownik.username }}
+                    </small>
+                </p>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

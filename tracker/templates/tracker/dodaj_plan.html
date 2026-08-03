@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% block tytul %}Nowy plan treningowy - GymApp{% endblock %}
+
+{% block zawartosc %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <h4 class="mb-0">Utwórz nowy plan treningowy</h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label class="form-label">{{ formularz.nazwa.label }}</label>
+                        {{ formularz.nazwa }}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">{{ formularz.opis.label }}</label>
+                        {{ formularz.opis }}
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        {{ formularz.czy_publiczny }}
+                        <label class="form-check-label">{{ formularz.czy_publiczny.label }}</label>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-dark">Utwórz plan</button>
+                        <a href="{% url 'lista_planow' %}" class="btn btn-outline-secondary">Anuluj</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

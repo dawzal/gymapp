@@ -1,5 +1,5 @@
 from django import forms
-from .models import Cwiczenie
+from .models import Cwiczenie, PlanTreningowy, DzienPlanTreningowego, CwiczenieDnia
 
 class CwiczenieForm(forms.ModelForm):
     class Meta:
@@ -28,3 +28,59 @@ class CwiczenieForm(forms.ModelForm):
             'opis': 'Opis (opcjonalnie)',
             'czy_publiczne': 'Widoczne dla wszystkich',
         } 
+
+class PlanTreningowyForm(forms.ModelForm):
+    class Meta:
+        model = PlanTreningowy
+        fields = ['nazwa', 'opis', 'czy_publiczny']
+        widgets = {
+            'nazwa': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'np. Plan Push/Pull/Legs'
+            }),
+            'opis': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Opisz swój plan treningowy...'
+            }),
+            'czy_publiczny': forms.CheckboxInput(attrs={
+                'class': 'form-check-input'
+            }),
+        }
+        labels = {
+            'nazwa': 'Nazwa planu',
+            'opis': 'Opis (opcjonalnie)',
+            'czy_publiczny': 'Widoczny dla innych użytkowników',
+        }
+
+
+class CwiczenieDniaForm(forms.ModelForm):
+    class Meta:
+        model = CwiczenieDnia
+        fields = ['cwiczenie', 'serie', 'powtorzenia', 'czas_odpoczynku']
+        widgets = {
+            'cwiczenie': forms.Select(attrs={
+                'class': 'form-select'
+            }),
+            'serie': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': 1,
+                'max': 20
+            }),
+            'powtorzenia': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': 1,
+                'max': 100
+            }),
+            'czas_odpoczynku': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': 0,
+                'max': 600
+            }),
+        }
+        labels = {
+            'cwiczenie': 'Ćwiczenie',
+            'serie': 'Liczba serii',
+            'powtorzenia': 'Liczba powtórzeń',
+            'czas_odpoczynku': 'Czas odpoczynku (sekundy)',
+        }
