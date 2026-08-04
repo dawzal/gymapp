@@ -5,7 +5,7 @@
 {% block zawartosc %}
 <div class="row">
     <div class="col-12">
-        <h2>Witaj, {{ request.user.username }}! 💪</h2>
+        <h2>Witaj, {{ request.user.username }}!</h2>
         <p class="text-muted">Co dzisiaj trenujesz?</p>
     </div>
 </div>
@@ -14,9 +14,8 @@
     <div class="col-md-3">
         <div class="card text-center">
             <div class="card-body">
-                <h1>🏋️</h1>
                 <h5 class="card-title">Plany treningowe</h5>
-                <p class="card-text">Twórz i zarządzaj planami</p>
+                <p class="card-text text-muted">Twórz i zarządzaj planami</p>
                 <a href="{% url 'lista_planow' %}" class="btn btn-dark">Przejdź</a>
             </div>
         </div>
@@ -24,9 +23,8 @@
     <div class="col-md-3">
         <div class="card text-center">
             <div class="card-body">
-                <h1>📋</h1>
                 <h5 class="card-title">Baza ćwiczeń</h5>
-                <p class="card-text">Przeglądaj i dodawaj ćwiczenia</p>
+                <p class="card-text text-muted">Przeglądaj i dodawaj ćwiczenia</p>
                 <a href="{% url 'lista_cwiczen' %}" class="btn btn-dark">Przejdź</a>
             </div>
         </div>
@@ -34,9 +32,8 @@
     <div class="col-md-3">
         <div class="card text-center">
             <div class="card-body">
-                <h1>📊</h1>
                 <h5 class="card-title">Kalkulator 1RM</h5>
-                <p class="card-text">Oblicz swój maksymalny ciężar</p>
+                <p class="card-text text-muted">Oblicz swój maksymalny ciężar</p>
                 <a href="{% url 'kalkulator_1rm' %}" class="btn btn-dark">Przejdź</a>
             </div>
         </div>
@@ -44,9 +41,8 @@
     <div class="col-md-3">
         <div class="card text-center">
             <div class="card-body">
-                <h1>📔</h1>
                 <h5 class="card-title">Dziennik treningów</h5>
-                <p class="card-text">Zapisuj swoje sesje treningowe</p>
+                <p class="card-text text-muted">Zapisuj swoje sesje treningowe</p>
                 <a href="{% url 'dziennik' %}" class="btn btn-dark">Przejdź</a>
             </div>
         </div>
@@ -59,15 +55,15 @@
         <h4>Moje plany treningowe</h4>
     </div>
     {% for plan in moje_plany %}
-    <div class="col-md-4 mb-3">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">{{ plan.nazwa }}</h5>
-                <p class="text-muted small">Dni: {{ plan.dni.count }}</p>
-                <a href="{% url 'szczegoly_planu' plan.pk %}" class="btn btn-dark btn-sm">Zobacz</a>
+        <div class="col-md-4 mb-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">{{ plan.nazwa }}</h5>
+                    <p class="text-muted small">Dni treningowe: {{ plan.dni.count }}</p>
+                    <a href="{% url 'szczegoly_planu' plan.pk %}" class="btn btn-dark btn-sm">Zobacz</a>
+                </div>
             </div>
         </div>
-    </div>
     {% endfor %}
 </div>
 {% endif %}
