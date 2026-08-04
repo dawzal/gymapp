@@ -10,4 +10,8 @@ urlpatterns = [
     path('plany/<int:pk>/', views.szczegoly_planu, name='szczegoly_planu'),
     path('plany/<int:plan_pk>/dodaj-dzien/', views.dodaj_dzien, name='dodaj_dzien'),
     path('dzien/<int:dzien_pk>/dodaj-cwiczenie/', views.dodaj_cwiczenie_do_dnia, name='dodaj_cwiczenie_do_dnia'),
+    path('kalkulator/', views.kalkulator_1rm, name='kalkulator_1rm'),
+    path('dziennik/', views.dziennik, name='dziennik'),
+    path('dziennik/dodaj/', views.dodaj_sesje, name='dodaj_sesje'),
+    path('dziennik/<int:pk>/', views.szczegoly_sesji, name='szczegoly_sesji'),
 ]

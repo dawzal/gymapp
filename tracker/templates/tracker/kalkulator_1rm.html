@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+
+{% block tytul %}Kalkulator 1RM - GymApp{% endblock %}
+
+{% block zawartosc %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <h2 class="mb-4">Kalkulator 1RM</h2>
+        <div class="card mb-4">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">Oblicz swój maksymalny ciężar</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">
+                    Podaj ciężar z którego ćwiczyłeś i ile powtórzeń wykonałeś,
+                    a kalkulator obliczy twoje szacowane 1RM (One Rep Maximum).
+                </p>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Ciężar (kg)</label>
+                            <input type="number" name="ciezar" class="form-control" placeholder="np. 100" step="0.5"
+                                min="1" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Liczba powtórzeń</label>
+                            <input type="number" name="powtorzenia" class="form-control" placeholder="np. 8" min="1"
+                                max="36" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-dark">Oblicz 1RM</button>
+                </form>
+            </div>
+        </div>
+
+        {% if wynik %}
+        <div class="card border-success">
+            <div class="card-body text-center">
+                <h3 class="text-success">Twoje szacowane 1RM</h3>
+                <h1 class="display-1 fw-bold">{{ wynik }} kg</h1>
+                <p class="text-muted">Obliczone wzorem Brzycki</p>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">Tabela procentowa</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Zalecane ciężary na podstawie twojego 1RM:</p>
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>% 1RM</th>
+                            <th>Ciężar (kg)</th>
+                            <th>Cel treningowy</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>95%</td>
+                            <td>{{ wynik|floatformat:1 }}</td>
+                            <td>Siła maksymalna (1-2 powt.)</td>
+                        </tr>
+                        <tr>
+                            <td>85%</td>
+                            <td>{% widthratio wynik 100 85 %} kg</td>
+                            <td>Siła (3-5 powt.)</td>
+                        </tr>
+                        <tr>
+                            <td>75%</td>
+                            <td>{% widthratio wynik 100 75 %} kg</td>
+                            <td>Hipertrofia (8-12 powt.)</td>
+                        </tr>
+                        <tr>
+                            <td>65%</td>
+                            <td>{% widthratio wynik 100 65 %} kg</td>
+                            <td>Wytrzymałość (15+ powt.)</td>
+                        </tr>
+                        <tr>
+                            <td>50%</td>
+                            <td>{% widthratio wynik 100 50 %} kg</td>
+                            <td>Rozgrzewka</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

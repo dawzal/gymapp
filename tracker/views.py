@@ -1,8 +1,8 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from .models import Cwiczenie, PlanTreningowy, DzienPlanTreningowego, CwiczenieDnia
-from .forms import CwiczenieForm, PlanTreningowyForm, CwiczenieDniaForm
+from .models import Cwiczenie, PlanTreningowy, DzienPlanTreningowego, CwiczenieDnia, SesjaTreeningowa, WpisDziennika
+from .forms import CwiczenieForm, PlanTreningowyForm, CwiczenieDniaForm, SesjaForm, WpisForm
 
 @login_required
 def dashboard(request):
@@ -107,4 +107,58 @@ def dodaj_cwiczenie_do_dnia(request, dzien_pk):
     return render(request, 'tracker/dodaj_cwiczenie_do_dnia.html', {
         'formularz': formularz,
         'dzien': dzien,
+    })
+
+@login_required
+def kalkulator_1rm(request):
+    wynik = None
+    if request.method == 'POST':
+        try:
+            ciezar = float(request.POST.get('ciezar', 0))
+            powtorzenia = int(request.POST.get('powtorzenia', 0))
+            if ciezar > 0 and 1 <= powtorzenia <= 36:
+                wynik = round(ciezar * (36 / (37 - powtorzenia)), 2)
+            else:
+                messages.error(request, 'Podaj prawidłowe wartości!')
+        except ValueError:
+            messages.error(request, 'Podaj liczby!')
+    return render(request, 'tracker/kalkulator_1rm.html', {'wynik': wynik})
+
+@login_required
+def dziennik(request):
+    sesje = SesjaTreeningowa.objects.filter(uzytkownik=request.user)
+    return render(request, 'tracker/dziennik.html', {'sesje': sesje})
+
+@login_required
+def dodaj_sesje(request):
+    if request.method == 'POST':
+        formularz = SesjaForm(request.POST)
+        if formularz.is_valid():
+            sesja = formularz.save(commit=False)
+            sesja.uzytkownik = request.user
+            sesja.save()
+            messages.success(request, 'Sesja treningowa dodana!')
+            return redirect('szczegoly_sesji', pk=sesja.pk)
+    else:
+        formularz = SesjaForm()
+    return render(request, 'tracker/dodaj_sesje.html', {'formularz': formularz})
+
+@login_required
+def szczegoly_sesji(request, pk):
+    sesja = get_object_or_404(SesjaTreeningowa, pk=pk, uzytkownik=request.user)
+    wpisy = sesja.wpisy.all()
+    if request.method == 'POST':
+        formularz = WpisForm(request.POST)
+        if formularz.is_valid():
+            wpis = formularz.save(commit=False)
+            wpis.sesja = sesja
+            wpis.save()
+            messages.success(request, 'Ćwiczenie zapisane!')
+            return redirect('szczegoly_sesji', pk=sesja.pk)
+    else:
+        formularz = WpisForm()
+    return render(request, 'tracker/szczegoly_sesji.html', {
+        'sesja': sesja,
+        'wpisy': wpisy,
+        'formularz': formularz,
     })

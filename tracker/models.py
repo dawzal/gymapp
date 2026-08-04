@@ -78,3 +78,33 @@ class CwiczenieDnia(models.Model):
     class Meta:
         verbose_name = 'Ćwiczenie dnia'
         verbose_name_plural = 'Ćwiczenia dnia'
+
+class SesjaTreeningowa(models.Model):
+    uzytkownik = models.ForeignKey(User, on_delete=models.CASCADE)
+    data = models.DateField()
+    nazwa = models.CharField(max_length=100, blank=True)
+    notatki = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"{self.uzytkownik.username} - {self.data}"
+
+    class Meta:
+        verbose_name = 'Sesja treningowa'
+        verbose_name_plural = 'Sesje treningowe'
+        ordering = ['-data']
+
+
+class WpisDziennika(models.Model):
+    sesja = models.ForeignKey(SesjaTreeningowa, on_delete=models.CASCADE, related_name='wpisy')
+    cwiczenie = models.ForeignKey(Cwiczenie, on_delete=models.CASCADE)
+    serie = models.PositiveIntegerField()
+    powtorzenia = models.PositiveIntegerField()
+    ciezar = models.DecimalField(max_digits=6, decimal_places=2)
+    notatki = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"{self.cwiczenie.nazwa} - {self.serie}x{self.powtorzenia} @ {self.ciezar}kg"
+
+    class Meta:
+        verbose_name = 'Wpis dziennika'
+        verbose_name_plural = 'Wpisy dziennika'

@@ -11,7 +11,7 @@
 </div>
 
 <div class="row mt-4">
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card text-center">
             <div class="card-body">
                 <h1>🏋️</h1>
@@ -21,7 +21,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card text-center">
             <div class="card-body">
                 <h1>📋</h1>
@@ -31,15 +31,44 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card text-center">
             <div class="card-body">
                 <h1>📊</h1>
                 <h5 class="card-title">Kalkulator 1RM</h5>
                 <p class="card-text">Oblicz swój maksymalny ciężar</p>
-                <a href="#" class="btn btn-dark">Przejdź</a>
+                <a href="{% url 'kalkulator_1rm' %}" class="btn btn-dark">Przejdź</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h1>📔</h1>
+                <h5 class="card-title">Dziennik treningów</h5>
+                <p class="card-text">Zapisuj swoje sesje treningowe</p>
+                <a href="{% url 'dziennik' %}" class="btn btn-dark">Przejdź</a>
             </div>
         </div>
     </div>
 </div>
+
+{% if moje_plany %}
+<div class="row mt-5">
+    <div class="col-12">
+        <h4>Moje plany treningowe</h4>
+    </div>
+    {% for plan in moje_plany %}
+    <div class="col-md-4 mb-3">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">{{ plan.nazwa }}</h5>
+                <p class="text-muted small">Dni: {{ plan.dni.count }}</p>
+                <a href="{% url 'szczegoly_planu' plan.pk %}" class="btn btn-dark btn-sm">Zobacz</a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
 {% endblock %}

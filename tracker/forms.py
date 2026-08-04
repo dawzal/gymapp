@@ -1,5 +1,6 @@
 from django import forms
-from .models import Cwiczenie, PlanTreningowy, DzienPlanTreningowego, CwiczenieDnia
+from .models import Cwiczenie, PlanTreningowy, CwiczenieDnia, SesjaTreeningowa, WpisDziennika
+
 
 class CwiczenieForm(forms.ModelForm):
     class Meta:
@@ -27,7 +28,8 @@ class CwiczenieForm(forms.ModelForm):
             'kategoria': 'Kategoria',
             'opis': 'Opis (opcjonalnie)',
             'czy_publiczne': 'Widoczne dla wszystkich',
-        } 
+        }
+
 
 class PlanTreningowyForm(forms.ModelForm):
     class Meta:
@@ -83,4 +85,50 @@ class CwiczenieDniaForm(forms.ModelForm):
             'serie': 'Liczba serii',
             'powtorzenia': 'Liczba powtórzeń',
             'czas_odpoczynku': 'Czas odpoczynku (sekundy)',
+        }
+
+
+class SesjaForm(forms.ModelForm):
+    class Meta:
+        model = SesjaTreeningowa
+        fields = ['data', 'nazwa', 'notatki']
+        widgets = {
+            'data': forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date'
+            }),
+            'nazwa': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'np. Trening Push'
+            }),
+            'notatki': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 2,
+                'placeholder': 'Jak się czułeś? Co poszło dobrze?'
+            }),
+        }
+        labels = {
+            'data': 'Data treningu',
+            'nazwa': 'Nazwa sesji (opcjonalnie)',
+            'notatki': 'Notatki (opcjonalnie)',
+        }
+
+
+class WpisForm(forms.ModelForm):
+    class Meta:
+        model = WpisDziennika
+        fields = ['cwiczenie', 'serie', 'powtorzenia', 'ciezar', 'notatki']
+        widgets = {
+            'cwiczenie': forms.Select(attrs={'class': 'form-select'}),
+            'serie': forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
+            'powtorzenia': forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
+            'ciezar': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'step': '0.5'}),
+            'notatki': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+        }
+        labels = {
+            'cwiczenie': 'Ćwiczenie',
+            'serie': 'Serie',
+            'powtorzenia': 'Powtórzenia',
+            'ciezar': 'Ciężar (kg)',
+            'notatki': 'Notatki',
         }

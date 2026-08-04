@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% block tytul %}Dziennik treningów - GymApp{% endblock %}
+
+{% block zawartosc %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Dziennik treningów</h2>
+    <a href="{% url 'dodaj_sesje' %}" class="btn btn-dark">+ Nowa sesja</a>
+</div>
+
+{% if sesje %}
+    <div class="row">
+        {% for sesja in sesje %}
+            <div class="col-md-4 mb-3">
+                <div class="card h-100">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="mb-0">{{ sesja.data }}</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if sesja.nazwa %}
+                            <h6>{{ sesja.nazwa }}</h6>
+                        {% endif %}
+                        <p class="text-muted">
+                            Ćwiczeń: {{ sesja.wpisy.count }}
+                        </p>
+                        {% if sesja.notatki %}
+                            <p class="card-text small">{{ sesja.notatki|truncatechars:80 }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="card-footer">
+                        <a href="{% url 'szczegoly_sesji' sesja.pk %}" class="btn btn-dark btn-sm">
+                            Zobacz sesję
+                        </a>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="alert alert-info">
+        Nie masz jeszcze żadnych sesji treningowych.
+        <a href="{% url 'dodaj_sesje' %}">Dodaj pierwszą sesję!</a>
+    </div>
+{% endif %}
+{% endblock %}

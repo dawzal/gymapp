@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+
+{% block tytul %}{{ sesja.data }} - GymApp{% endblock %}
+
+{% block zawartosc %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2>{{ sesja.nazwa|default:"Sesja treningowa" }}</h2>
+        <p class="text-muted mb-0">📅 {{ sesja.data }}</p>
+        {% if sesja.notatki %}
+            <p class="text-muted">{{ sesja.notatki }}</p>
+        {% endif %}
+    </div>
+    <a href="{% url 'dziennik' %}" class="btn btn-outline-secondary">← Powrót</a>
+</div>
+
+<div class="row">
+    <div class="col-md-7">
+        <div class="card mb-4">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">Wykonane ćwiczenia</h5>
+            </div>
+            <div class="card-body">
+                {% if wpisy %}
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Ćwiczenie</th>
+                                <th>Serie</th>
+                                <th>Powt.</th>
+                                <th>Ciężar</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for wpis in wpisy %}
+                                <tr>
+                                    <td>{{ wpis.cwiczenie.nazwa }}</td>
+                                    <td>{{ wpis.serie }}</td>
+                                    <td>{{ wpis.powtorzenia }}</td>
+                                    <td>{{ wpis.ciezar }} kg</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p class="text-muted">Brak ćwiczeń. Dodaj pierwsze po prawej!</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-5">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">Dodaj ćwiczenie</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="mb-2">
+                        <label class="form-label">{{ formularz.cwiczenie.label }}</label>
+                        {{ formularz.cwiczenie }}
+                    </div>
+
+                    <div class="row">
+                        <div class="col-6 mb-2">
+                            <label class="form-label">{{ formularz.serie.label }}</label>
+                            {{ formularz.serie }}
+                        </div>
+                        <div class="col-6 mb-2">
+                            <label class="form-label">{{ formularz.powtorzenia.label }}</label>
+                            {{ formularz.powtorzenia }}
+                        </div>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label">{{ formularz.ciezar.label }}</label>
+                        {{ formularz.ciezar }}
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label">{{ formularz.notatki.label }}</label>
+                        {{ formularz.notatki }}
+                    </div>
+
+                    <button type="submit" class="btn btn-dark w-100">Zapisz ćwiczenie</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
