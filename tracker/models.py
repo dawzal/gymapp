@@ -79,7 +79,7 @@ class CwiczenieDnia(models.Model):
         verbose_name = 'Ćwiczenie dnia'
         verbose_name_plural = 'Ćwiczenia dnia'
 
-class SesjaTreeningowa(models.Model):
+class SesjaTreningowa(models.Model):
     uzytkownik = models.ForeignKey(User, on_delete=models.CASCADE)
     data = models.DateField()
     nazwa = models.CharField(max_length=100, blank=True)
@@ -95,7 +95,7 @@ class SesjaTreeningowa(models.Model):
 
 
 class WpisDziennika(models.Model):
-    sesja = models.ForeignKey(SesjaTreeningowa, on_delete=models.CASCADE, related_name='wpisy')
+    sesja = models.ForeignKey(SesjaTreningowa, on_delete=models.CASCADE, related_name='wpisy')
     cwiczenie = models.ForeignKey(Cwiczenie, on_delete=models.CASCADE)
     serie = models.PositiveIntegerField()
     powtorzenia = models.PositiveIntegerField()

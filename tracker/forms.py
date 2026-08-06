@@ -1,5 +1,5 @@
 from django import forms
-from .models import Cwiczenie, PlanTreningowy, CwiczenieDnia, SesjaTreeningowa, WpisDziennika
+from .models import Cwiczenie, PlanTreningowy, CwiczenieDnia, SesjaTreningowa, WpisDziennika
 
 
 class CwiczenieForm(forms.ModelForm):
@@ -90,7 +90,7 @@ class CwiczenieDniaForm(forms.ModelForm):
 
 class SesjaForm(forms.ModelForm):
     class Meta:
-        model = SesjaTreeningowa
+        model = SesjaTreningowa
         fields = ['data', 'nazwa', 'notatki']
         widgets = {
             'data': forms.DateInput(attrs={

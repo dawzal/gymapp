@@ -13,6 +13,7 @@
     </div>
     <div class="d-flex gap-2">
         <a href="{% url 'edytuj_sesje' sesja.pk %}" class="btn btn-outline-dark">Edytuj sesję</a>
+        <a href="{% url 'usun_sesje' sesja.pk %}" class="btn btn-outline-danger">Usuń sesję</a>
         <a href="{% url 'dziennik' %}" class="btn btn-outline-secondary">← Powrót</a>
     </div>
 </div>
@@ -44,6 +45,7 @@
                                     <td>{{ wpis.ciezar }} kg</td>
                                     <td>
                                         <a href="{% url 'edytuj_wpis' wpis.pk %}" class="btn btn-sm btn-outline-dark">Edytuj</a>
+                                        <a href="{% url 'usun_wpis' wpis.pk %}" class="btn btn-sm btn-outline-danger">Usuń</a>
                                     </td>
                                 </tr>
                             {% endfor %}

@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+
+{% block tytul %}Usuń wpis - GymApp{% endblock %}
+
+{% block zawartosc %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h4 class="mb-0">Potwierdź usunięcie</h4>
+            </div>
+            <div class="card-body">
+                <p>Czy na pewno chcesz usunąć wpis:</p>
+                <p><strong>{{ wpis.cwiczenie.nazwa }}</strong> — {{ wpis.serie }}x{{ wpis.powtorzenia }} @ {{ wpis.ciezar }}kg</p>
+                <p class="text-danger">Ta operacja jest nieodwracalna.</p>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-danger">Tak, usuń wpis</button>
+                        <a href="{% url 'szczegoly_sesji' wpis.sesja.pk %}" class="btn btn-outline-secondary">Anuluj</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

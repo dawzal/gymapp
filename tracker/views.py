@@ -1,8 +1,9 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from .models import Cwiczenie, PlanTreningowy, DzienPlanTreningowego, CwiczenieDnia, SesjaTreeningowa, WpisDziennika
+from .models import Cwiczenie, PlanTreningowy, DzienPlanTreningowego, CwiczenieDnia, SesjaTreningowa, WpisDziennika
 from .forms import CwiczenieForm, PlanTreningowyForm, CwiczenieDniaForm, SesjaForm, WpisForm
+from django.db.models import Sum, Count
 
 @login_required
 def dashboard(request):
@@ -126,7 +127,7 @@ def kalkulator_1rm(request):
 
 @login_required
 def dziennik(request):
-    sesje = SesjaTreeningowa.objects.filter(uzytkownik=request.user)
+    sesje = SesjaTreningowa.objects.filter(uzytkownik=request.user)
     return render(request, 'tracker/dziennik.html', {'sesje': sesje})
 
 @login_required
@@ -145,7 +146,7 @@ def dodaj_sesje(request):
 
 @login_required
 def szczegoly_sesji(request, pk):
-    sesja = get_object_or_404(SesjaTreeningowa, pk=pk, uzytkownik=request.user)
+    sesja = get_object_or_404(SesjaTreningowa, pk=pk, uzytkownik=request.user)
     wpisy = sesja.wpisy.all()
     if request.method == 'POST':
         formularz = WpisForm(request.POST)
@@ -165,9 +166,8 @@ def szczegoly_sesji(request, pk):
 
 @login_required
 def statystyki(request):
-    from django.db.models import Sum, Count
     
-    sesje = SesjaTreeningowa.objects.filter(uzytkownik=request.user)
+    sesje = SesjaTreningowa.objects.filter(uzytkownik=request.user)
     liczba_sesji = sesje.count()
     
     wpisy = WpisDziennika.objects.filter(sesja__uzytkownik=request.user)
@@ -218,7 +218,7 @@ def edytuj_plan(request, pk):
 
 @login_required
 def edytuj_sesje(request, pk):
-    sesja = get_object_or_404(SesjaTreeningowa, pk=pk, uzytkownik=request.user)
+    sesja = get_object_or_404(Sesjaningowa, pk=pk, uzytkownik=request.user)
     if request.method == 'POST':
         formularz = SesjaForm(request.POST, instance=sesja)
         if formularz.is_valid():
@@ -260,3 +260,41 @@ def edytuj_cwiczenie_dnia(request, pk):
         'formularz': formularz,
         'cwiczenie_dnia': cwiczenie_dnia,
     })
+
+@login_required
+def usun_plan(request, pk):
+    plan = get_object_or_404(PlanTreningowy, pk=pk, uzytkownik=request.user)
+    if request.method == 'POST':
+        plan.delete()
+        messages.success(request, 'Plan treningowy został usunięty!')
+        return redirect('lista_planow')
+    return render(request, 'tracker/usun_plan.html', {'plan': plan})
+
+@login_required
+def usun_sesje(request, pk):
+    sesja = get_object_or_404(SesjaTreningowa, pk=pk, uzytkownik=request.user)
+    if request.method == 'POST':
+        sesja.delete()
+        messages.success(request, 'Sesja treningowa została usunięta!')
+        return redirect('dziennik')
+    return render(request, 'tracker/usun_sesje.html', {'sesja': sesja})
+
+@login_required
+def usun_wpis(request, pk):
+    wpis = get_object_or_404(WpisDziennika, pk=pk, sesja__uzytkownik=request.user)
+    sesja_pk = wpis.sesja.pk
+    if request.method == 'POST':
+        wpis.delete()
+        messages.success(request, 'Wpis został usunięty!')
+        return redirect('szczegoly_sesji', pk=sesja_pk)
+    return render(request, 'tracker/usun_wpis.html', {'wpis': wpis})
+
+@login_required
+def usun_cwiczenie_dnia(request, pk):
+    cwiczenie_dnia = get_object_or_404(CwiczenieDnia, pk=pk, dzien__plan__uzytkownik=request.user)
+    plan_pk = cwiczenie_dnia.dzien.plan.pk
+    if request.method == 'POST':
+        cwiczenie_dnia.delete()
+        messages.success(request, 'Ćwiczenie zostało usunięte z planu!')
+        return redirect('szczegoly_planu', pk=plan_pk)
+    return render(request, 'tracker/usun_cwiczenie_dnia.html', {'cwiczenie_dnia': cwiczenie_dnia})

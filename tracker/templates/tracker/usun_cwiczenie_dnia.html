@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+
+{% block tytul %}Usuń ćwiczenie z planu - GymApp{% endblock %}
+
+{% block zawartosc %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h4 class="mb-0">Potwierdź usunięcie</h4>
+            </div>
+            <div class="card-body">
+                <p>Czy na pewno chcesz usunąć ćwiczenie:</p>
+                <p><strong>{{ cwiczenie_dnia.cwiczenie.nazwa }}</strong> — {{ cwiczenie_dnia.serie }}x{{ cwiczenie_dnia.powtorzenia }}</p>
+                <p class="text-muted">Z dnia: {{ cwiczenie_dnia.dzien.get_dzien_display }} — Plan: {{ cwiczenie_dnia.dzien.plan.nazwa }}</p>
+                <p class="text-danger">Ta operacja jest nieodwracalna.</p>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-danger">Tak, usuń</button>
+                        <a href="{% url 'szczegoly_planu' cwiczenie_dnia.dzien.plan.pk %}" class="btn btn-outline-secondary">Anuluj</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
