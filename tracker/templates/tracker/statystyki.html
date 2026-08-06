@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+
+{% block tytul %}Statystyki - GymApp{% endblock %}
+
+{% block zawartosc %}
+<h2 class="mb-4">Twoje statystyki</h2>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h1 class="display-4 fw-bold">{{ liczba_sesji }}</h1>
+                <p class="text-muted">Sesji treningowych</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h1 class="display-4 fw-bold">{{ liczba_wpisow }}</h1>
+                <p class="text-muted">Wykonanych ćwiczeń</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h1 class="display-4 fw-bold">{{ ulubione_cwiczenia|length }}</h1>
+                <p class="text-muted">Różnych ćwiczeń</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">Najczęściej wykonywane ćwiczenia</h5>
+            </div>
+            <div class="card-body">
+                {% if ulubione_cwiczenia %}
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Ćwiczenie</th>
+                                <th>Liczba wykonań</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cwiczenie in ulubione_cwiczenia %}
+                                <tr>
+                                    <td>{{ cwiczenie.cwiczenie__nazwa }}</td>
+                                    <td>{{ cwiczenie.liczba }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p class="text-muted">Brak danych. Zacznij trenować!</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">Aktywność treningowa</h5>
+            </div>
+            <div class="card-body">
+                {% if dane_wykres %}
+                    <canvas id="wykresAktywnosci"></canvas>
+                {% else %}
+                    <p class="text-muted">Brak danych. Zacznij trenować!</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if dane_wykres %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const ctx = document.getElementById('wykresAktywnosci');
+    const dane = [
+        {% for sesja in dane_wykres %}
+            { x: '{{ sesja.data }}', y: {{ sesja.liczba_cwiczen }} },
+        {% endfor %}
+    ];
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: dane.map(d => d.x),
+            datasets: [{
+                label: 'Liczba ćwiczeń',
+                data: dane.map(d => d.y),
+                backgroundColor: '#212529',
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 1 }
+                }
+            }
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}

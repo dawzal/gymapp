@@ -14,4 +14,5 @@ urlpatterns = [
     path('dziennik/', views.dziennik, name='dziennik'),
     path('dziennik/dodaj/', views.dodaj_sesje, name='dodaj_sesje'),
     path('dziennik/<int:pk>/', views.szczegoly_sesji, name='szczegoly_sesji'),
+    path('statystyki/', views.statystyki, name='statystyki'),
 ]

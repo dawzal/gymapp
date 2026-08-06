@@ -162,3 +162,30 @@ def szczegoly_sesji(request, pk):
         'wpisy': wpisy,
         'formularz': formularz,
     })
+
+@login_required
+def statystyki(request):
+    from django.db.models import Sum, Count
+    
+    sesje = SesjaTreeningowa.objects.filter(uzytkownik=request.user)
+    liczba_sesji = sesje.count()
+    
+    wpisy = WpisDziennika.objects.filter(sesja__uzytkownik=request.user)
+    liczba_wpisow = wpisy.count()
+    
+    ulubione_cwiczenia = wpisy.values(
+        'cwiczenie__nazwa'
+    ).annotate(
+        liczba=Count('id')
+    ).order_by('-liczba')[:5]
+    
+    dane_wykres = sesje.values('data').annotate(
+        liczba_cwiczen=Count('wpisy')
+    ).order_by('data')[:10]
+    
+    return render(request, 'tracker/statystyki.html', {
+        'liczba_sesji': liczba_sesji,
+        'liczba_wpisow': liczba_wpisow,
+        'ulubione_cwiczenia': ulubione_cwiczenia,
+        'dane_wykres': dane_wykres,
+    })
