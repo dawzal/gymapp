@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block tytul %}Edytuj wpis - GymApp{% endblock %}
+
+{% block zawartosc %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <h4 class="mb-0">Edytuj wpis: {{ wpis.cwiczenie.nazwa }}</h4>
+                <small>Sesja: {{ wpis.sesja.data }}</small>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label class="form-label">{{ formularz.cwiczenie.label }}</label>
+                        {{ formularz.cwiczenie }}
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">{{ formularz.serie.label }}</label>
+                            {{ formularz.serie }}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">{{ formularz.powtorzenia.label }}</label>
+                            {{ formularz.powtorzenia }}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">{{ formularz.ciezar.label }}</label>
+                            {{ formularz.ciezar }}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">{{ formularz.notatki.label }}</label>
+                        {{ formularz.notatki }}
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-dark">Zapisz zmiany</button>
+                        <a href="{% url 'szczegoly_sesji' wpis.sesja.pk %}" class="btn btn-outline-secondary">Anuluj</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

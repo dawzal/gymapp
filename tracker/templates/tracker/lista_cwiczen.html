@@ -29,6 +29,11 @@
             <div class="card-body">
                 <h5 class="card-title">{{ cwiczenie.nazwa }}</h5>
                 <span class="badge bg-secondary mb-2">{{ cwiczenie.get_kategoria_display }}</span>
+                    {% if cwiczenie.dodane_przez == request.user %}
+                        <div class="mt-2">
+                            <a href="{% url 'edytuj_cwiczenie' cwiczenie.pk %}" class="btn btn-sm btn-outline-dark">Edytuj</a>
+                        </div>
+                    {% endif %}
                 {% if cwiczenie.opis %}
                 <p class="card-text text-muted">{{ cwiczenie.opis|truncatechars:100 }}</p>
                 {% endif %}

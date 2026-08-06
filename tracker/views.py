@@ -189,3 +189,74 @@ def statystyki(request):
         'ulubione_cwiczenia': ulubione_cwiczenia,
         'dane_wykres': dane_wykres,
     })
+
+@login_required
+def edytuj_cwiczenie(request, pk):
+    cwiczenie = get_object_or_404(Cwiczenie, pk=pk, dodane_przez=request.user)
+    if request.method == 'POST':
+        formularz = CwiczenieForm(request.POST, instance=cwiczenie)
+        if formularz.is_valid():
+            formularz.save()
+            messages.success(request, 'Ćwiczenie zostało zaktualizowane!')
+            return redirect('lista_cwiczen')
+    else:
+        formularz = CwiczenieForm(instance=cwiczenie)
+    return render(request, 'tracker/edytuj_cwiczenie.html', {'formularz': formularz, 'cwiczenie': cwiczenie})
+
+@login_required
+def edytuj_plan(request, pk):
+    plan = get_object_or_404(PlanTreningowy, pk=pk, uzytkownik=request.user)
+    if request.method == 'POST':
+        formularz = PlanTreningowyForm(request.POST, instance=plan)
+        if formularz.is_valid():
+            formularz.save()
+            messages.success(request, 'Plan treningowy został zaktualizowany!')
+            return redirect('szczegoly_planu', pk=plan.pk)
+    else:
+        formularz = PlanTreningowyForm(instance=plan)
+    return render(request, 'tracker/edytuj_plan.html', {'formularz': formularz, 'plan': plan})
+
+@login_required
+def edytuj_sesje(request, pk):
+    sesja = get_object_or_404(SesjaTreeningowa, pk=pk, uzytkownik=request.user)
+    if request.method == 'POST':
+        formularz = SesjaForm(request.POST, instance=sesja)
+        if formularz.is_valid():
+            formularz.save()
+            messages.success(request, 'Sesja została zaktualizowana!')
+            return redirect('szczegoly_sesji', pk=sesja.pk)
+    else:
+        formularz = SesjaForm(instance=sesja)
+    return render(request, 'tracker/edytuj_sesje.html', {'formularz': formularz, 'sesja': sesja})
+
+@login_required
+def edytuj_wpis(request, pk):
+    wpis = get_object_or_404(WpisDziennika, pk=pk, sesja__uzytkownik=request.user)
+    if request.method == 'POST':
+        formularz = WpisForm(request.POST, instance=wpis)
+        if formularz.is_valid():
+            formularz.save()
+            messages.success(request, 'Wpis został zaktualizowany!')
+            return redirect('szczegoly_sesji', pk=wpis.sesja.pk)
+    else:
+        formularz = WpisForm(instance=wpis)
+    return render(request, 'tracker/edytuj_wpis.html', {
+        'formularz': formularz,
+        'wpis': wpis,
+    })
+
+@login_required
+def edytuj_cwiczenie_dnia(request, pk):
+    cwiczenie_dnia = get_object_or_404(CwiczenieDnia, pk=pk, dzien__plan__uzytkownik=request.user)
+    if request.method == 'POST':
+        formularz = CwiczenieDniaForm(request.POST, instance=cwiczenie_dnia)
+        if formularz.is_valid():
+            formularz.save()
+            messages.success(request, 'Ćwiczenie zostało zaktualizowane!')
+            return redirect('szczegoly_planu', pk=cwiczenie_dnia.dzien.plan.pk)
+    else:
+        formularz = CwiczenieDniaForm(instance=cwiczenie_dnia)
+    return render(request, 'tracker/edytuj_cwiczenie_dnia.html', {
+        'formularz': formularz,
+        'cwiczenie_dnia': cwiczenie_dnia,
+    })

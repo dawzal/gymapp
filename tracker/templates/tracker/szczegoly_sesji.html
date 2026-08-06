@@ -6,12 +6,15 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h2>{{ sesja.nazwa|default:"Sesja treningowa" }}</h2>
-        <p class="text-muted mb-0">📅 {{ sesja.data }}</p>
+        <p class="text-muted mb-0">{{ sesja.data }}</p>
         {% if sesja.notatki %}
             <p class="text-muted">{{ sesja.notatki }}</p>
         {% endif %}
     </div>
-    <a href="{% url 'dziennik' %}" class="btn btn-outline-secondary">← Powrót</a>
+    <div class="d-flex gap-2">
+        <a href="{% url 'edytuj_sesje' sesja.pk %}" class="btn btn-outline-dark">Edytuj sesję</a>
+        <a href="{% url 'dziennik' %}" class="btn btn-outline-secondary">← Powrót</a>
+    </div>
 </div>
 
 <div class="row">
@@ -29,6 +32,7 @@
                                 <th>Serie</th>
                                 <th>Powt.</th>
                                 <th>Ciężar</th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -38,6 +42,9 @@
                                     <td>{{ wpis.serie }}</td>
                                     <td>{{ wpis.powtorzenia }}</td>
                                     <td>{{ wpis.ciezar }} kg</td>
+                                    <td>
+                                        <a href="{% url 'edytuj_wpis' wpis.pk %}" class="btn btn-sm btn-outline-dark">Edytuj</a>
+                                    </td>
                                 </tr>
                             {% endfor %}
                         </tbody>

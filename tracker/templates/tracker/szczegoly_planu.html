@@ -7,10 +7,13 @@
     <div>
         <h2>{{ plan.nazwa }}</h2>
         {% if plan.opis %}
-        <p class="text-muted">{{ plan.opis }}</p>
+            <p class="text-muted">{{ plan.opis }}</p>
         {% endif %}
     </div>
-    <a href="{% url 'lista_planow' %}" class="btn btn-outline-secondary">← Powrót</a>
+    <div class="d-flex gap-2">
+        <a href="{% url 'edytuj_plan' plan.pk %}" class="btn btn-outline-dark">Edytuj plan</a>
+        <a href="{% url 'lista_planow' %}" class="btn btn-outline-secondary">← Powrót</a>
+    </div>
 </div>
 
 <div class="card mb-4">
@@ -23,7 +26,7 @@
             <div class="d-flex gap-2">
                 <select name="dzien" class="form-select">
                     {% for klucz, nazwa in dni_tygodnia %}
-                    <option value="{{ klucz }}">{{ nazwa }}</option>
+                        <option value="{{ klucz }}">{{ nazwa }}</option>
                     {% endfor %}
                 </select>
                 <button type="submit" class="btn btn-dark">Dodaj dzień</button>
@@ -33,49 +36,53 @@
 </div>
 
 {% if dni %}
-<div class="row">
-    {% for dzien in dni %}
-    <div class="col-md-6 mb-4">
-        <div class="card h-100">
-            <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">{{ dzien.get_dzien_display }}</h5>
-                <a href="{% url 'dodaj_cwiczenie_do_dnia' dzien.pk %}" class="btn btn-sm btn-light">
-                    + Ćwiczenie
-                </a>
+    <div class="row">
+        {% for dzien in dni %}
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">{{ dzien.get_dzien_display }}</h5>
+                        <a href="{% url 'dodaj_cwiczenie_do_dnia' dzien.pk %}" class="btn btn-sm btn-light">
+                            + Ćwiczenie
+                        </a>
+                    </div>
+                    <div class="card-body">
+                        {% if dzien.cwiczenia.all %}
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Ćwiczenie</th>
+                                        <th>Serie</th>
+                                        <th>Powt.</th>
+                                        <th>Odpoczynek</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for cwiczenie_dnia in dzien.cwiczenia.all %}
+                                        <tr>
+                                            <td>{{ cwiczenie_dnia.cwiczenie.nazwa }}</td>
+                                            <td>{{ cwiczenie_dnia.serie }}</td>
+                                            <td>{{ cwiczenie_dnia.powtorzenia }}</td>
+                                            <td>{{ cwiczenie_dnia.czas_odpoczynku }}s</td>
+                                            <td>
+                                                <a href="{% url 'edytuj_cwiczenie_dnia' cwiczenie_dnia.pk %}" class="btn btn-sm btn-outline-dark">Edytuj</a>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% else %}
+                            <p class="text-muted">Brak ćwiczeń. Dodaj pierwsze!</p>
+                        {% endif %}
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                {% if dzien.cwiczenia.all %}
-                <table class="table table-sm">
-                    <thead>
-                        <tr>
-                            <th>Ćwiczenie</th>
-                            <th>Serie</th>
-                            <th>Powt.</th>
-                            <th>Odpoczynek</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for cwiczenie_dnia in dzien.cwiczenia.all %}
-                        <tr>
-                            <td>{{ cwiczenie_dnia.cwiczenie.nazwa }}</td>
-                            <td>{{ cwiczenie_dnia.serie }}</td>
-                            <td>{{ cwiczenie_dnia.powtorzenia }}</td>
-                            <td>{{ cwiczenie_dnia.czas_odpoczynku }}s</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                {% else %}
-                <p class="text-muted">Brak ćwiczeń. Dodaj pierwsze!</p>
-                {% endif %}
-            </div>
-        </div>
+        {% endfor %}
     </div>
-    {% endfor %}
-</div>
 {% else %}
-<div class="alert alert-info">
-    Brak dni treningowych. Dodaj pierwszy dzień powyżej!
-</div>
+    <div class="alert alert-info">
+        Brak dni treningowych. Dodaj pierwszy dzień powyżej!
+    </div>
 {% endif %}
 {% endblock %}

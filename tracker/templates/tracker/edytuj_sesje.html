@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% block tytul %}Edytuj sesję - GymApp{% endblock %}
+
+{% block zawartosc %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <h4 class="mb-0">Edytuj sesję treningową</h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label class="form-label">{{ formularz.data.label }}</label>
+                        {{ formularz.data }}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">{{ formularz.nazwa.label }}</label>
+                        {{ formularz.nazwa }}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">{{ formularz.notatki.label }}</label>
+                        {{ formularz.notatki }}
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-dark">Zapisz zmiany</button>
+                        <a href="{% url 'szczegoly_sesji' sesja.pk %}" class="btn btn-outline-secondary">Anuluj</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
