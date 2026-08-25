@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 
+
 class Cwiczenie(models.Model):
     KATEGORIE = [
         ('klatka', 'Klatka piersiowa'),
@@ -21,10 +22,11 @@ class Cwiczenie(models.Model):
 
     def __str__(self):
         return self.nazwa
-    
+
     class Meta:
         verbose_name = 'Ćwiczenie'
         verbose_name_plural = 'Ćwiczenia'
+
 
 class PlanTreningowy(models.Model):
     nazwa = models.CharField(max_length=100)
@@ -41,43 +43,21 @@ class PlanTreningowy(models.Model):
         verbose_name_plural = 'Plany treningowe'
 
 
-class DzienPlanTreningowego(models.Model):
-    DNI = [
-        ('poniedzialek', 'Poniedziałek'),
-        ('wtorek', 'Wtorek'),
-        ('sroda', 'Środa'),
-        ('czwartek', 'Czwartek'),
-        ('piatek', 'Piątek'),
-        ('sobota', 'Sobota'),
-        ('niedziela', 'Niedziela'),
-    ]
-
-    plan = models.ForeignKey(PlanTreningowy, on_delete=models.CASCADE, related_name='dni')
-    dzien = models.CharField(max_length=20, choices=DNI)
-    kolejnosc = models.PositiveIntegerField(default=0)
-
-    def __str__(self):
-        return f"{self.plan.nazwa} - {self.get_dzien_display()}"
-
-    class Meta:
-        verbose_name = 'Dzień planu'
-        verbose_name_plural = 'Dni planu'
-        ordering = ['kolejnosc']
-
-
-class CwiczenieDnia(models.Model):
-    dzien = models.ForeignKey(DzienPlanTreningowego, on_delete=models.CASCADE, related_name='cwiczenia')
+class CwiczeniePlanu(models.Model):
+    plan = models.ForeignKey(PlanTreningowy, on_delete=models.CASCADE, related_name='cwiczenia')
     cwiczenie = models.ForeignKey(Cwiczenie, on_delete=models.CASCADE)
     serie = models.PositiveIntegerField(default=3)
     powtorzenia = models.PositiveIntegerField(default=10)
-    czas_odpoczynku = models.PositiveIntegerField(default=60, help_text='Czas odpoczynku w sekundach')
+    ciezar = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    notatki = models.TextField(blank=True)
 
     def __str__(self):
         return f"{self.cwiczenie.nazwa} - {self.serie}x{self.powtorzenia}"
 
     class Meta:
-        verbose_name = 'Ćwiczenie dnia'
-        verbose_name_plural = 'Ćwiczenia dnia'
+        verbose_name = 'Ćwiczenie planu'
+        verbose_name_plural = 'Ćwiczenia planu'
+
 
 class SesjaTreningowa(models.Model):
     uzytkownik = models.ForeignKey(User, on_delete=models.CASCADE)

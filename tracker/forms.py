@@ -1,5 +1,5 @@
 from django import forms
-from .models import Cwiczenie, PlanTreningowy, CwiczenieDnia, SesjaTreningowa, WpisDziennika
+from .models import Cwiczenie, PlanTreningowy, CwiczeniePlanu, SesjaTreningowa, WpisDziennika
 
 
 class CwiczenieForm(forms.ModelForm):
@@ -56,35 +56,23 @@ class PlanTreningowyForm(forms.ModelForm):
         }
 
 
-class CwiczenieDniaForm(forms.ModelForm):
+class CwiczeniePlanuForm(forms.ModelForm):
     class Meta:
-        model = CwiczenieDnia
-        fields = ['cwiczenie', 'serie', 'powtorzenia', 'czas_odpoczynku']
+        model = CwiczeniePlanu
+        fields = ['cwiczenie', 'serie', 'powtorzenia', 'ciezar', 'notatki']
         widgets = {
-            'cwiczenie': forms.Select(attrs={
-                'class': 'form-select'
-            }),
-            'serie': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'min': 1,
-                'max': 20
-            }),
-            'powtorzenia': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'min': 1,
-                'max': 100
-            }),
-            'czas_odpoczynku': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'min': 0,
-                'max': 600
-            }),
+            'cwiczenie': forms.Select(attrs={'class': 'form-select'}),
+            'serie': forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'max': 20}),
+            'powtorzenia': forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'max': 100}),
+            'ciezar': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'step': '0.5'}),
+            'notatki': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
         labels = {
             'cwiczenie': 'Ćwiczenie',
             'serie': 'Liczba serii',
             'powtorzenia': 'Liczba powtórzeń',
-            'czas_odpoczynku': 'Czas odpoczynku (sekundy)',
+            'ciezar': 'Ciężar (kg)',
+            'notatki': 'Notatki (opcjonalnie)',
         }
 
 

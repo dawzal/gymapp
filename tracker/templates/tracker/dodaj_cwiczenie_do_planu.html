@@ -1,14 +1,13 @@
 {% extends 'base.html' %}
 
-{% block tytul %}Edytuj ćwiczenie planu - GymApp{% endblock %}
+{% block tytul %}Dodaj ćwiczenie do planu - GymApp{% endblock %}
 
 {% block zawartosc %}
 <div class="row justify-content-center">
     <div class="col-md-8">
         <div class="card">
             <div class="card-header bg-dark text-white">
-                <h4 class="mb-0">Edytuj ćwiczenie: {{ cwiczenie_dnia.cwiczenie.nazwa }}</h4>
-                <small>Plan: {{ cwiczenie_dnia.dzien.plan.nazwa }} — {{ cwiczenie_dnia.dzien.get_dzien_display }}</small>
+                <h4 class="mb-0">Dodaj ćwiczenie do planu: {{ plan.nazwa }}</h4>
             </div>
             <div class="card-body">
                 <form method="post">
@@ -29,14 +28,19 @@
                             {{ formularz.powtorzenia }}
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label">{{ formularz.czas_odpoczynku.label }}</label>
-                            {{ formularz.czas_odpoczynku }}
+                            <label class="form-label">{{ formularz.ciezar.label }}</label>
+                            {{ formularz.ciezar }}
                         </div>
                     </div>
 
+                    <div class="mb-3">
+                        <label class="form-label">{{ formularz.notatki.label }}</label>
+                        {{ formularz.notatki }}
+                    </div>
+
                     <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-dark">Zapisz zmiany</button>
-                        <a href="{% url 'szczegoly_planu' cwiczenie_dnia.dzien.plan.pk %}" class="btn btn-outline-secondary">Anuluj</a>
+                        <button type="submit" class="btn btn-dark">Dodaj ćwiczenie</button>
+                        <a href="{% url 'szczegoly_planu' plan.pk %}" class="btn btn-outline-secondary">Anuluj</a>
                     </div>
                 </form>
             </div>

@@ -11,80 +11,52 @@
         {% endif %}
     </div>
     <div class="d-flex gap-2">
-    <a href="{% url 'edytuj_plan' plan.pk %}" class="btn btn-outline-dark">Edytuj plan</a>
-    <a href="{% url 'usun_plan' plan.pk %}" class="btn btn-outline-danger">Usuń plan</a>
-    <a href="{% url 'lista_planow' %}" class="btn btn-outline-secondary">← Powrót</a>
+        <a href="{% url 'rozpocznij_trening' plan.pk %}" class="btn btn-dark">Rozpocznij trening</a>
+        <a href="{% url 'dodaj_cwiczenie_do_planu' plan.pk %}" class="btn btn-outline-dark">+ Dodaj ćwiczenie</a>
+        <a href="{% url 'edytuj_plan' plan.pk %}" class="btn btn-outline-secondary">Edytuj plan</a>
+        <a href="{% url 'usun_plan' plan.pk %}" class="btn btn-outline-danger">Usuń plan</a>
+        <a href="{% url 'lista_planow' %}" class="btn btn-outline-secondary">← Powrót</a>
     </div>
 </div>
 
-<div class="card mb-4">
-    <div class="card-header bg-dark text-white">
-        <h5 class="mb-0">Dodaj dzień treningowy</h5>
-    </div>
-    <div class="card-body">
-        <form method="post" action="{% url 'dodaj_dzien' plan.pk %}">
-            {% csrf_token %}
-            <div class="d-flex gap-2">
-                <select name="dzien" class="form-select">
-                    {% for klucz, nazwa in dni_tygodnia %}
-                        <option value="{{ klucz }}">{{ nazwa }}</option>
+{% if cwiczenia %}
+    <div class="card">
+        <div class="card-header bg-dark text-white">
+            <h5 class="mb-0">Ćwiczenia w planie</h5>
+        </div>
+        <div class="card-body">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Ćwiczenie</th>
+                        <th>Serie</th>
+                        <th>Powtórzenia</th>
+                        <th>Ciężar (kg)</th>
+                        <th>Notatki</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in cwiczenia %}
+                        <tr>
+                            <td>{{ c.cwiczenie.nazwa }}</td>
+                            <td>{{ c.serie }}</td>
+                            <td>{{ c.powtorzenia }}</td>
+                            <td>{{ c.ciezar }}</td>
+                            <td>{{ c.notatki|default:"-" }}</td>
+                            <td>
+                                <a href="{% url 'edytuj_cwiczenie_planu' c.pk %}" class="btn btn-sm btn-outline-dark">Edytuj</a>
+                                <a href="{% url 'usun_cwiczenie_planu' c.pk %}" class="btn btn-sm btn-outline-danger">Usuń</a>
+                            </td>
+                        </tr>
                     {% endfor %}
-                </select>
-                <button type="submit" class="btn btn-dark">Dodaj dzień</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-{% if dni %}
-    <div class="row">
-        {% for dzien in dni %}
-            <div class="col-md-6 mb-4">
-                <div class="card h-100">
-                    <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">{{ dzien.get_dzien_display }}</h5>
-                        <a href="{% url 'dodaj_cwiczenie_do_dnia' dzien.pk %}" class="btn btn-sm btn-light">
-                            + Ćwiczenie
-                        </a>
-                    </div>
-                    <div class="card-body">
-                        {% if dzien.cwiczenia.all %}
-                            <table class="table table-sm">
-                                <thead>
-                                    <tr>
-                                        <th>Ćwiczenie</th>
-                                        <th>Serie</th>
-                                        <th>Powt.</th>
-                                        <th>Odpoczynek</th>
-                                        <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for cwiczenie_dnia in dzien.cwiczenia.all %}
-                                        <tr>
-                                            <td>{{ cwiczenie_dnia.cwiczenie.nazwa }}</td>
-                                            <td>{{ cwiczenie_dnia.serie }}</td>
-                                            <td>{{ cwiczenie_dnia.powtorzenia }}</td>
-                                            <td>{{ cwiczenie_dnia.czas_odpoczynku }}s</td>
-                                            <td>
-                                                <a href="{% url 'edytuj_cwiczenie_dnia' cwiczenie_dnia.pk %}" class="btn btn-sm btn-outline-dark">Edytuj</a>
-                                                <a href="{% url 'usun_cwiczenie_dnia' cwiczenie_dnia.pk %}" class="btn btn-sm btn-outline-danger">Usuń</a>
-                                            </td>
-                                        </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        {% else %}
-                            <p class="text-muted">Brak ćwiczeń. Dodaj pierwsze!</p>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 {% else %}
     <div class="alert alert-info">
-        Brak dni treningowych. Dodaj pierwszy dzień powyżej!
+        Brak ćwiczeń w planie. <a href="{% url 'dodaj_cwiczenie_do_planu' plan.pk %}">Dodaj pierwsze ćwiczenie!</a>
     </div>
 {% endif %}
 {% endblock %}
