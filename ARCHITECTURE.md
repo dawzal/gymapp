@@ -23,7 +23,7 @@ tracker/           logika domenowa
   management/commands/wypelnij_baze.py   domyślna baza ćwiczeń
 templates/
   base.html                 układ strony, nawigacja, komunikaty
-  formularz.html            wspólny szablon wszystkich formularzy add/edit
+  formularz.html            wspólny szablon wszystkich formularzy add/edit (opcjonalny przycisk "dodaj kolejne")
   pola_formularza.html      renderowanie pól wraz z błędami
   potwierdz_usuniecie.html  wspólny szablon potwierdzenia usunięcia
 tracker/templates/tracker/  szablony list, szczegółów, statystyk, kalkulatora
@@ -49,9 +49,9 @@ User ─┬─< PlanTreningowy ─< CwiczeniePlanu >─ Cwiczenie >─(dodane_pr
 1. Użytkownik rejestruje się i loguje (`accounts`), po czym trafia na `dashboard`.
 2. Wybiera ćwiczenia z bazy (publiczne i własne) lub dodaje własne.
 3. Tworzy plan i dodaje do niego ćwiczenia.
-4. "Rozpocznij trening" (POST) w jednej transakcji tworzy sesję z dzisiejszą datą
+4. "Rozpocznij trening" (przycisk POST na dashboardzie, liście planów i w szczegółach planu, bez strony pośredniej) w jednej transakcji tworzy sesję z dzisiejszą datą
    i kopiuje ćwiczenia planu do wpisów dziennika. Wpisy są niezależne od planu.
-5. Sesję można też utworzyć ręcznie i dodawać wpisy w widoku szczegółów sesji.
+5. "Trening bez planu" tworzy pustą sesję (domyślnie z dzisiejszą datą); wpisy dodaje się w widoku szczegółów sesji.
 6. `statystyki` agreguje dane zalogowanego użytkownika; `kalkulator_1rm` nie zapisuje danych.
 
 ## 5. Bezpieczeństwo i autoryzacja
@@ -69,7 +69,7 @@ User ─┬─< PlanTreningowy ─< CwiczeniePlanu >─ Cwiczenie >─(dodane_pr
 
 ## 6. Testy
 
-`python manage.py test` uruchamia 29 testów: uprawnienia (cudze obiekty -> 404),
+`python manage.py test` uruchamia 36 testów: uprawnienia (cudze obiekty -> 404),
 widoczność ćwiczeń, start treningu, kalkulator 1RM, statystyki, walidację,
 logowanie i wylogowanie, renderowanie wszystkich stron oraz tworzenie, edycję i usuwanie.
 

@@ -1,0 +1,4 @@
+<form method="post" action="{% url 'rozpocznij_trening' plan.pk %}" class="d-inline">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-dark {{ rozmiar }}"{% if not liczba %} disabled{% endif %}>Rozpocznij trening</button>
+</form>

@@ -11,7 +11,7 @@
         {% endif %}
     </div>
     <div class="d-flex gap-2">
-        <a href="{% url 'rozpocznij_trening' plan.pk %}" class="btn btn-dark">Rozpocznij trening</a>
+        {% include 'tracker/_start_treningu.html' with liczba=cwiczenia|length %}
         <a href="{% url 'dodaj_cwiczenie_do_planu' plan.pk %}" class="btn btn-outline-dark">+ Dodaj ćwiczenie</a>
         <a href="{% url 'edytuj_plan' plan.pk %}" class="btn btn-outline-secondary">Edytuj plan</a>
         <a href="{% url 'usun_plan' plan.pk %}" class="btn btn-outline-danger">Usuń plan</a>

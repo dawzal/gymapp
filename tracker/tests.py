@@ -185,7 +185,6 @@ class WlasneStronyTest(BazowyTest):
             reverse('edytuj_plan', args=[self.plan.pk]),
             reverse('usun_plan', args=[self.plan.pk]),
             reverse('dodaj_cwiczenie_do_planu', args=[self.plan.pk]),
-            reverse('rozpocznij_trening', args=[self.plan.pk]),
             reverse('edytuj_cwiczenie_planu', args=[self.cwiczenie_planu.pk]),
             reverse('usun_cwiczenie_planu', args=[self.cwiczenie_planu.pk]),
             reverse('kalkulator_1rm'), reverse('dziennik'), reverse('dodaj_sesje'),
@@ -235,3 +234,50 @@ class WlasneStronyTest(BazowyTest):
         self.assertRedirects(odpowiedz, reverse('dziennik'))
         self.assertFalse(SesjaTreningowa.objects.filter(pk=self.sesja.pk).exists())
         self.assertFalse(WpisDziennika.objects.filter(pk=self.wpis.pk).exists())
+
+
+class NowyPrzeplywTest(BazowyTest):
+    def setUp(self):
+        super().setUp()
+        self.plan = PlanTreningowy.objects.create(nazwa='Push', uzytkownik=self.ania)
+
+    def test_get_na_starcie_treningu_przekierowuje_do_planu(self):
+        odpowiedz = self.client.get(reverse('rozpocznij_trening', args=[self.plan.pk]))
+        self.assertRedirects(odpowiedz, reverse('szczegoly_planu', args=[self.plan.pk]))
+        self.assertEqual(SesjaTreningowa.objects.count(), 0)
+
+    def test_pusty_plan_nie_tworzy_sesji(self):
+        odpowiedz = self.client.post(reverse('rozpocznij_trening', args=[self.plan.pk]))
+        self.assertRedirects(odpowiedz, reverse('szczegoly_planu', args=[self.plan.pk]))
+        self.assertEqual(SesjaTreningowa.objects.count(), 0)
+
+    def test_dodaj_i_dodaj_kolejne_wraca_do_formularza(self):
+        adres = reverse('dodaj_cwiczenie_do_planu', args=[self.plan.pk])
+        odpowiedz = self.client.post(adres, {
+            'cwiczenie': self.publiczne.pk, 'serie': 3, 'powtorzenia': 10, 'ciezar': '20',
+            'notatki': '', 'dodaj_kolejne': '1',
+        })
+        self.assertRedirects(odpowiedz, adres)
+        self.assertEqual(self.plan.cwiczenia.count(), 1)
+
+    def test_zwykle_dodanie_wraca_do_planu(self):
+        odpowiedz = self.client.post(reverse('dodaj_cwiczenie_do_planu', args=[self.plan.pk]), {
+            'cwiczenie': self.publiczne.pk, 'serie': 3, 'powtorzenia': 10, 'ciezar': '20', 'notatki': '',
+        })
+        self.assertRedirects(odpowiedz, reverse('szczegoly_planu', args=[self.plan.pk]))
+
+    def test_lista_cwiczen_jest_pogrupowana_wg_kategorii(self):
+        odpowiedz = self.client.get(reverse('dodaj_cwiczenie_do_planu', args=[self.plan.pk]))
+        self.assertContains(odpowiedz, '<optgroup label="Nogi">')
+        self.assertContains(odpowiedz, '<optgroup label="Inne">')
+
+    def test_trening_bez_planu_ma_domyslna_date(self):
+        odpowiedz = self.client.get(reverse('dodaj_sesje'))
+        from django.utils import timezone
+        self.assertContains(odpowiedz, f'value="{timezone.localdate().isoformat()}"')
+
+    def test_dashboard_pokazuje_ostatni_trening_i_tydzien(self):
+        SesjaTreningowa.objects.create(uzytkownik=self.ania, data=date.today(), nazwa='Wczorajszy')
+        odpowiedz = self.client.get(reverse('dashboard'))
+        self.assertEqual(odpowiedz.context['ostatnia_sesja'].nazwa, 'Wczorajszy')
+        self.assertEqual(odpowiedz.context['sesje_w_tygodniu'], 1)

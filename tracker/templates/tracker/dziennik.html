@@ -5,7 +5,7 @@
 {% block zawartosc %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>Dziennik treningów</h2>
-    <a href="{% url 'dodaj_sesje' %}" class="btn btn-dark">+ Nowa sesja</a>
+    <a href="{% url 'dodaj_sesje' %}" class="btn btn-dark">+ Trening bez planu</a>
 </div>
 
 {% if sesje %}
@@ -21,7 +21,7 @@
                             <h6>{{ sesja.nazwa }}</h6>
                         {% endif %}
                         <p class="text-muted">
-                            Ćwiczeń: {{ sesja.wpisy.count }}
+                            Ćwiczeń: {{ sesja.liczba_cwiczen }}
                         </p>
                         {% if sesja.notatki %}
                             <p class="card-text small">{{ sesja.notatki|truncatechars:80 }}</p>
@@ -38,8 +38,8 @@
     </div>
 {% else %}
     <div class="alert alert-info">
-        Nie masz jeszcze żadnych sesji treningowych.
-        <a href="{% url 'dodaj_sesje' %}">Dodaj pierwszą sesję!</a>
+        Nie masz jeszcze żadnych treningów. Rozpocznij trening z planu lub
+        <a href="{% url 'dodaj_sesje' %}">zapisz trening bez planu</a>.
     </div>
 {% endif %}
 {% endblock %}

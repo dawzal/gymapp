@@ -16,6 +16,9 @@
                     {% include 'pola_formularza.html' %}
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-dark">{{ przycisk }}</button>
+                        {% if przycisk_kolejny %}
+                        <button type="submit" name="dodaj_kolejne" value="1" class="btn btn-outline-dark">{{ przycisk_kolejny }}</button>
+                        {% endif %}
                         <a href="{{ anuluj }}" class="btn btn-outline-secondary">Anuluj</a>
                     </div>
                 </form>

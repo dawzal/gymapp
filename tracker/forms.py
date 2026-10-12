@@ -8,7 +8,21 @@ def ogranicz_cwiczenia(formularz, uzytkownik):
     dostepne = Cwiczenie.dostepne_dla(uzytkownik)
     if formularz.instance.pk and formularz.instance.cwiczenie_id:
         dostepne = dostepne | Cwiczenie.objects.filter(pk=formularz.instance.cwiczenie_id)
-    formularz.fields['cwiczenie'].queryset = dostepne.distinct()
+    dostepne = dostepne.distinct()
+    formularz.fields['cwiczenie'].queryset = dostepne
+    formularz.fields['cwiczenie'].choices = pogrupowane_wybory(dostepne)
+
+
+def pogrupowane_wybory(cwiczenia):
+    grupy = {klucz: [] for klucz, _ in Cwiczenie.KATEGORIE}
+    for cwiczenie in cwiczenia.order_by('nazwa'):
+        grupy.setdefault(cwiczenie.kategoria, []).append((cwiczenie.pk, cwiczenie.nazwa))
+    nazwy = dict(Cwiczenie.KATEGORIE)
+    wybory = [('', '---------')]
+    for klucz, pozycje in grupy.items():
+        if pozycje:
+            wybory.append((nazwy.get(klucz, klucz), pozycje))
+    return wybory
 
 
 class CwiczenieForm(forms.ModelForm):

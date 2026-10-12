@@ -25,8 +25,9 @@
                     </small>
                 </p>
             </div>
-            <div class="card-footer">
-                <a href="{% url 'szczegoly_planu' plan.pk %}" class="btn btn-dark btn-sm">Zobacz plan</a>
+            <div class="card-footer d-flex gap-2">
+                {% include 'tracker/_start_treningu.html' with liczba=plan.liczba_cwiczen rozmiar='btn-sm' %}
+                <a href="{% url 'szczegoly_planu' plan.pk %}" class="btn btn-outline-dark btn-sm">Zobacz plan</a>
             </div>
         </div>
     </div>

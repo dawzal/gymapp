@@ -1,4 +1,5 @@
 import math
+from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -12,12 +13,13 @@ from .forms import CwiczenieForm, CwiczeniePlanuForm, PlanTreningowyForm, SesjaF
 from .models import Cwiczenie, CwiczeniePlanu, PlanTreningowy, SesjaTreningowa, WpisDziennika
 
 
-def pokaz_formularz(request, formularz, tytul, przycisk, anuluj, podtytul=''):
+def pokaz_formularz(request, formularz, tytul, przycisk, anuluj, podtytul='', przycisk_kolejny=''):
     return render(request, 'formularz.html', {
         'formularz': formularz,
         'tytul': tytul,
         'podtytul': podtytul,
         'przycisk': przycisk,
+        'przycisk_kolejny': przycisk_kolejny,
         'anuluj': anuluj,
     })
 
@@ -39,8 +41,17 @@ def usun_obiekt(request, obiekt, tytul, opis, ostrzezenie, anuluj, po_usunieciu,
 def dashboard(request):
     moje_plany = PlanTreningowy.objects.filter(uzytkownik=request.user).annotate(
         liczba_cwiczen=Count('cwiczenia')
-    )[:3]
-    return render(request, 'tracker/dashboard.html', {'moje_plany': moje_plany})
+    )[:6]
+    sesje = SesjaTreningowa.objects.filter(uzytkownik=request.user)
+    ostatnia_sesja = sesje.annotate(
+        liczba_cwiczen=Count('wpisy')
+    ).order_by('-data', '-pk').first()
+    poczatek_tygodnia = timezone.localdate() - timedelta(days=6)
+    return render(request, 'tracker/dashboard.html', {
+        'moje_plany': moje_plany,
+        'ostatnia_sesja': ostatnia_sesja,
+        'sesje_w_tygodniu': sesje.filter(data__gte=poczatek_tygodnia).count(),
+    })
 
 
 @login_required
@@ -146,10 +157,13 @@ def dodaj_cwiczenie_do_planu(request, plan_pk):
         cwiczenie_planu.plan = plan
         cwiczenie_planu.save()
         messages.success(request, 'Ćwiczenie dodane do planu!')
+        if 'dodaj_kolejne' in request.POST:
+            return redirect('dodaj_cwiczenie_do_planu', plan_pk=plan.pk)
         return redirect('szczegoly_planu', pk=plan.pk)
     return pokaz_formularz(
         request, formularz, f'Dodaj ćwiczenie do planu: {plan.nazwa}', 'Dodaj ćwiczenie',
-        reverse('szczegoly_planu', args=[plan.pk]))
+        reverse('szczegoly_planu', args=[plan.pk]),
+        przycisk_kolejny='Dodaj i dodaj kolejne')
 
 
 @login_required
@@ -189,37 +203,43 @@ def usun_cwiczenie_planu(request, pk):
 @login_required
 def rozpocznij_trening(request, plan_pk):
     plan = get_object_or_404(PlanTreningowy, pk=plan_pk, uzytkownik=request.user)
-    if request.method == 'POST':
-        with transaction.atomic():
-            sesja = SesjaTreningowa.objects.create(
-                uzytkownik=request.user,
-                data=timezone.localdate(),
-                nazwa=f"Trening: {plan.nazwa}",
+    if request.method != 'POST':
+        return redirect('szczegoly_planu', pk=plan.pk)
+    cwiczenia = list(plan.cwiczenia.select_related('cwiczenie'))
+    if not cwiczenia:
+        messages.error(request, 'Plan nie zawiera jeszcze ćwiczeń.')
+        return redirect('szczegoly_planu', pk=plan.pk)
+    with transaction.atomic():
+        sesja = SesjaTreningowa.objects.create(
+            uzytkownik=request.user,
+            data=timezone.localdate(),
+            nazwa=f"Trening: {plan.nazwa}",
+        )
+        WpisDziennika.objects.bulk_create([
+            WpisDziennika(
+                sesja=sesja,
+                cwiczenie=c.cwiczenie,
+                serie=c.serie,
+                powtorzenia=c.powtorzenia,
+                ciezar=c.ciezar,
             )
-            WpisDziennika.objects.bulk_create([
-                WpisDziennika(
-                    sesja=sesja,
-                    cwiczenie=c.cwiczenie,
-                    serie=c.serie,
-                    powtorzenia=c.powtorzenia,
-                    ciezar=c.ciezar,
-                )
-                for c in plan.cwiczenia.select_related('cwiczenie')
-            ])
-        messages.success(request, f'Rozpoczęto trening: {plan.nazwa}!')
-        return redirect('szczegoly_sesji', pk=sesja.pk)
-    return render(request, 'tracker/rozpocznij_trening.html', {'plan': plan})
+            for c in cwiczenia
+        ])
+    messages.success(request, f'Rozpoczęto trening: {plan.nazwa}!')
+    return redirect('szczegoly_sesji', pk=sesja.pk)
 
 
 @login_required
 def dziennik(request):
-    sesje = SesjaTreningowa.objects.filter(uzytkownik=request.user)
+    sesje = SesjaTreningowa.objects.filter(uzytkownik=request.user).annotate(
+        liczba_cwiczen=Count('wpisy')
+    )
     return render(request, 'tracker/dziennik.html', {'sesje': sesje})
 
 
 @login_required
 def dodaj_sesje(request):
-    formularz = SesjaForm(request.POST or None)
+    formularz = SesjaForm(request.POST or None, initial={'data': timezone.localdate()})
     if formularz.is_valid():
         sesja = formularz.save(commit=False)
         sesja.uzytkownik = request.user
@@ -227,7 +247,8 @@ def dodaj_sesje(request):
         messages.success(request, 'Sesja treningowa dodana!')
         return redirect('szczegoly_sesji', pk=sesja.pk)
     return pokaz_formularz(
-        request, formularz, 'Dodaj sesję treningową', 'Zapisz sesję', reverse('dziennik'))
+        request, formularz, 'Trening bez planu', 'Zacznij trening', reverse('dziennik'),
+        podtytul='Zapisz trening od zera i dodawaj ćwiczenia w trakcie.')
 
 
 @login_required

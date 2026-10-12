@@ -3,68 +3,63 @@
 {% block tytul %}Panel główny - GymApp{% endblock %}
 
 {% block zawartosc %}
-<div class="row">
-    <div class="col-12">
-        <h2>Witaj, {{ request.user.username }}!</h2>
-        <p class="text-muted">Co dzisiaj trenujesz?</p>
-    </div>
+<div class="mb-4">
+    <h2>Witaj, {{ request.user.username }}!</h2>
+    <p class="text-muted mb-0">Co dzisiaj trenujesz?</p>
 </div>
 
-<div class="row mt-4">
-    <div class="col-md-3">
-        <div class="card text-center">
+<div class="row mb-4">
+    <div class="col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">Ostatni trening</h5>
+            </div>
             <div class="card-body">
-                <h5 class="card-title">Plany treningowe</h5>
-                <p class="card-text text-muted">Twórz i zarządzaj planami</p>
-                <a href="{% url 'lista_planow' %}" class="btn btn-dark">Przejdź</a>
+                {% if ostatnia_sesja %}
+                <h5>{{ ostatnia_sesja.nazwa|default:"Sesja treningowa" }}</h5>
+                <p class="text-muted mb-2">{{ ostatnia_sesja.data|date:"d.m.Y" }} - ćwiczeń: {{ ostatnia_sesja.liczba_cwiczen }}</p>
+                <a href="{% url 'szczegoly_sesji' ostatnia_sesja.pk %}" class="btn btn-outline-dark btn-sm">Zobacz</a>
+                {% else %}
+                <p class="text-muted mb-0">Nie masz jeszcze żadnych treningów.</p>
+                {% endif %}
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card text-center">
-            <div class="card-body">
-                <h5 class="card-title">Baza ćwiczeń</h5>
-                <p class="card-text text-muted">Przeglądaj i dodawaj ćwiczenia</p>
-                <a href="{% url 'lista_cwiczen' %}" class="btn btn-dark">Przejdź</a>
+    <div class="col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">Ten tydzień</h5>
             </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-center">
             <div class="card-body">
-                <h5 class="card-title">Kalkulator 1RM</h5>
-                <p class="card-text text-muted">Oblicz swój maksymalny ciężar</p>
-                <a href="{% url 'kalkulator_1rm' %}" class="btn btn-dark">Przejdź</a>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-center">
-            <div class="card-body">
-                <h5 class="card-title">Dziennik treningów</h5>
-                <p class="card-text text-muted">Zapisuj swoje sesje treningowe</p>
-                <a href="{% url 'dziennik' %}" class="btn btn-dark">Przejdź</a>
+                <h1 class="display-5 fw-bold mb-0">{{ sesje_w_tygodniu }}</h1>
+                <p class="text-muted">treningów w ostatnich 7 dniach</p>
+                <a href="{% url 'dodaj_sesje' %}" class="btn btn-outline-dark btn-sm">Trening bez planu</a>
             </div>
         </div>
     </div>
 </div>
 
+<h4 class="mb-3">Rozpocznij trening z planu</h4>
 {% if moje_plany %}
-<div class="row mt-5">
-    <div class="col-12">
-        <h4>Moje plany treningowe</h4>
-    </div>
+<div class="row">
     {% for plan in moje_plany %}
-        <div class="col-md-4 mb-3">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">{{ plan.nazwa }}</h5>
-                    <p class="text-muted small">Ćwiczeń w planie: {{ plan.liczba_cwiczen }}</p>
-                    <a href="{% url 'szczegoly_planu' plan.pk %}" class="btn btn-dark btn-sm">Zobacz</a>
-                </div>
+    <div class="col-md-4 mb-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">{{ plan.nazwa }}</h5>
+                <p class="text-muted small">Ćwiczeń w planie: {{ plan.liczba_cwiczen }}</p>
+            </div>
+            <div class="card-footer d-flex gap-2">
+                {% include 'tracker/_start_treningu.html' with liczba=plan.liczba_cwiczen rozmiar='btn-sm' %}
+                <a href="{% url 'szczegoly_planu' plan.pk %}" class="btn btn-outline-dark btn-sm">Zobacz plan</a>
             </div>
         </div>
+    </div>
     {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info">
+    Nie masz jeszcze żadnych planów. <a href="{% url 'dodaj_plan' %}">Utwórz pierwszy plan!</a>
 </div>
 {% endif %}
 {% endblock %}
