@@ -33,8 +33,10 @@
             <div><div class="fs-4 fw-bold">{{ podsumowanie.serie }}</div><div class="text-muted small">serii</div></div>
             <div><div class="fs-4 fw-bold">{{ podsumowanie.powtorzenia }}</div><div class="text-muted small">powtórzeń</div></div>
             <div><div class="fs-4 fw-bold">{{ podsumowanie.objetosc|floatformat:"-1" }} kg</div><div class="text-muted small">objętość</div></div>
-            {% if podsumowanie.minuty %}
-            <div><div class="fs-4 fw-bold">{{ podsumowanie.minuty }} min</div><div class="text-muted small">czas treningu</div></div>
+            {% if sesja.zakonczono and sesja.czas_trwania_tekst %}
+            <div><div class="fs-4 fw-bold">{{ sesja.czas_trwania_tekst }}</div><div class="text-muted small">czas treningu</div></div>
+            {% elif sesja.trwa %}
+            <div><div class="fs-4 fw-bold" id="czas-trwania" data-start="{{ sesja.rozpoczeto.isoformat }}">0:00:00</div><div class="text-muted small">czas treningu (trwa)</div></div>
             {% endif %}
             {% if liczba_rekordow %}
             <div><div class="fs-4 fw-bold text-warning">{{ liczba_rekordow }}</div><div class="text-muted small">rekordów</div></div>
@@ -222,6 +224,21 @@
             ustawStanUsuniecia(wiersz);
         }
     });
+</script>
+
+<script>
+    (function () {
+        const licznik = document.getElementById('czas-trwania');
+        if (!licznik) { return; }
+        const start = new Date(licznik.dataset.start).getTime();
+        function dwie(liczba) { return String(liczba).padStart(2, '0'); }
+        function odswiez() {
+            const sekundy = Math.max(0, Math.floor((Date.now() - start) / 1000));
+            licznik.textContent = Math.floor(sekundy / 3600) + ':' + dwie(Math.floor(sekundy % 3600 / 60)) + ':' + dwie(sekundy % 60);
+        }
+        odswiez();
+        setInterval(odswiez, 1000);
+    })();
 </script>
 
 <script>

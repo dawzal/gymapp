@@ -22,6 +22,7 @@
                         {% endif %}
                         <p class="text-muted">
                             Ćwiczeń: {{ sesja.liczba_cwiczen }}
+                            {% if sesja.czas_trwania_tekst %}<br>Czas treningu: {{ sesja.czas_trwania_tekst }}{% endif %}
                         </p>
                         {% if sesja.notatki %}
                             <p class="card-text small">{{ sesja.notatki|truncatechars:80 }}</p>

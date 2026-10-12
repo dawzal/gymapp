@@ -1,6 +1,6 @@
 from django.db.models import Q
 
-from .models import SeriaWpisu
+from .models import SeriaWpisu, SesjaTreningowa
 
 
 def oblicz_1rm(ciezar, powtorzenia):
@@ -104,9 +104,17 @@ def podsumowanie_sesji(sesja):
         'serie': len(serie),
         'powtorzenia': sum(s.powtorzenia for s in serie),
         'objetosc': sum(s.powtorzenia * s.ciezar for s in serie),
-        'minuty': None,
     }
-    if sesja.rozpoczeto and sesja.zakonczono:
-        sekundy = (sesja.zakonczono - sesja.rozpoczeto).total_seconds()
-        podsumowanie['minuty'] = max(1, round(sekundy / 60))
     return podsumowanie
+
+
+def sredni_czas_treningu(uzytkownik):
+    czasy = [
+        (koniec - poczatek).total_seconds()
+        for poczatek, koniec in SesjaTreningowa.objects.filter(
+            uzytkownik=uzytkownik, rozpoczeto__isnull=False, zakonczono__isnull=False
+        ).values_list('rozpoczeto', 'zakonczono')
+    ]
+    if not czasy:
+        return None
+    return max(1, round(sum(czasy) / len(czasy) / 60))

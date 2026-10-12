@@ -4,6 +4,14 @@ from django.db.models import Max, Q
 from django.contrib.auth.models import User
 
 
+def formatuj_minuty(minuty):
+    if minuty is None:
+        return ''
+    if minuty < 60:
+        return f'{minuty} min'
+    return f'{minuty // 60} h {minuty % 60:02d} min'
+
+
 class Cwiczenie(models.Model):
     KATEGORIE = [
         ('klatka', 'Klatka piersiowa'),
@@ -102,6 +110,21 @@ class SesjaTreningowa(models.Model):
     notatki = models.TextField(blank=True)
     rozpoczeto = models.DateTimeField(null=True, blank=True)
     zakonczono = models.DateTimeField(null=True, blank=True)
+
+    @property
+    def czas_trwania_minuty(self):
+        if self.rozpoczeto and self.zakonczono:
+            sekundy = (self.zakonczono - self.rozpoczeto).total_seconds()
+            return max(1, round(sekundy / 60))
+        return None
+
+    @property
+    def czas_trwania_tekst(self):
+        return formatuj_minuty(self.czas_trwania_minuty)
+
+    @property
+    def trwa(self):
+        return self.rozpoczeto is not None and self.zakonczono is None
 
     def __str__(self):
         return f"{self.uzytkownik.username} - {self.data}"

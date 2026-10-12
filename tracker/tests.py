@@ -10,8 +10,9 @@ from django.utils import timezone
 
 from .analiza import (
     ostatnie_serie, podsumowanie_sesji, progres_cwiczenia, rekordy_uzytkownika,
-    rekordy_wpisow, szacowane_1rm,
+    rekordy_wpisow, sredni_czas_treningu, szacowane_1rm,
 )
+from .models import formatuj_minuty
 from .forms import CwiczeniePlanuForm, NowyWpisForm, WpisForm
 from .models import (
     Cwiczenie, CwiczeniePlanu, PlanTreningowy, SeriaWpisu, SesjaTreningowa, WpisDziennika,
@@ -568,7 +569,8 @@ class AnalizaTest(HistoriaTestBase):
         self.assertEqual(podsumowanie['serie'], 2)
         self.assertEqual(podsumowanie['powtorzenia'], 15)
         self.assertEqual(podsumowanie['objetosc'], Decimal('400'))
-        self.assertEqual(podsumowanie['minuty'], 47)
+        self.assertEqual(sesja.czas_trwania_minuty, 47)
+        self.assertEqual(sesja.czas_trwania_tekst, '47 min')
 
 
 class OstatnioWSesjiTest(HistoriaTestBase):
@@ -691,3 +693,69 @@ class StatystykiProgresTest(HistoriaTestBase):
         self.assertEqual(odpowiedz.status_code, 200)
         self.assertIsNone(odpowiedz.context['wybrane_cwiczenie'])
         self.assertEqual(odpowiedz.context['rekordy'], [])
+
+
+class CzasTreninguTest(BazowyTest):
+    def sesja(self, minuty=None, trwa=False, uzytkownik=None):
+        teraz = timezone.now()
+        sesja = SesjaTreningowa.objects.create(
+            uzytkownik=uzytkownik or self.ania, data=date.today(),
+            rozpoczeto=teraz - timedelta(minutes=minuty or 0) if (minuty or trwa) else None,
+        )
+        if minuty is not None and not trwa:
+            sesja.zakonczono = teraz
+            sesja.save()
+        return sesja
+
+    def test_formatowanie_minut(self):
+        self.assertEqual(formatuj_minuty(None), '')
+        self.assertEqual(formatuj_minuty(5), '5 min')
+        self.assertEqual(formatuj_minuty(60), '1 h 00 min')
+        self.assertEqual(formatuj_minuty(135), '2 h 15 min')
+
+    def test_czas_trwania_zakonczonej_sesji(self):
+        sesja = self.sesja(minuty=72)
+        self.assertEqual(sesja.czas_trwania_minuty, 72)
+        self.assertEqual(sesja.czas_trwania_tekst, '1 h 12 min')
+        self.assertFalse(sesja.trwa)
+
+    def test_sesja_w_trakcie_nie_ma_jeszcze_czasu(self):
+        sesja = self.sesja(trwa=True)
+        self.assertIsNone(sesja.czas_trwania_minuty)
+        self.assertTrue(sesja.trwa)
+
+    def test_sesja_bez_znacznika_startu_nie_ma_czasu(self):
+        sesja = SesjaTreningowa.objects.create(uzytkownik=self.ania, data=date(2020, 1, 1))
+        self.assertIsNone(sesja.czas_trwania_minuty)
+        self.assertFalse(sesja.trwa)
+
+    def test_strona_sesji_w_trakcie_ma_licznik_na_zywo(self):
+        sesja = self.sesja(trwa=True)
+        odpowiedz = self.client.get(reverse('szczegoly_sesji', args=[sesja.pk]))
+        self.assertContains(odpowiedz, 'id="czas-trwania"')
+        self.assertContains(odpowiedz, 'data-start="')
+
+    def test_strona_zakonczonej_sesji_pokazuje_czas_bez_licznika(self):
+        sesja = self.sesja(minuty=45)
+        odpowiedz = self.client.get(reverse('szczegoly_sesji', args=[sesja.pk]))
+        self.assertContains(odpowiedz, '45 min')
+        self.assertNotContains(odpowiedz, 'id="czas-trwania"')
+
+    def test_dziennik_pokazuje_czas_treningu(self):
+        self.sesja(minuty=50)
+        odpowiedz = self.client.get(reverse('dziennik'))
+        self.assertContains(odpowiedz, 'Czas treningu: 50 min')
+
+    def test_sredni_czas_liczy_tylko_zakonczone_sesje_uzytkownika(self):
+        self.sesja(minuty=40)
+        self.sesja(minuty=60)
+        self.sesja(trwa=True)
+        self.sesja(minuty=500, uzytkownik=self.bartek)
+        self.assertEqual(sredni_czas_treningu(self.ania), 50)
+        odpowiedz = self.client.get(reverse('statystyki'))
+        self.assertEqual(odpowiedz.context['sredni_czas'], '50 min')
+
+    def test_brak_zakonczonych_sesji_daje_pusty_sredni_czas(self):
+        self.assertIsNone(sredni_czas_treningu(self.ania))
+        odpowiedz = self.client.get(reverse('statystyki'))
+        self.assertEqual(odpowiedz.context['sredni_czas'], '')

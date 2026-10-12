@@ -14,7 +14,7 @@ from django.views.decorators.http import require_POST
 
 from .analiza import (
     oblicz_1rm, ostatnie_serie, podsumowanie_sesji, progres_cwiczenia, rekordy_uzytkownika,
-    rekordy_wpisow,
+    rekordy_wpisow, sredni_czas_treningu,
 )
 from .forms import (
     CwiczenieForm, CwiczeniePlanuForm, NowyWpisForm, PlanTreningowyForm, SeriaFormSet,
@@ -22,6 +22,7 @@ from .forms import (
 )
 from .models import (
     Cwiczenie, CwiczeniePlanu, PlanTreningowy, SeriaWpisu, SesjaTreningowa, WpisDziennika,
+    formatuj_minuty,
 )
 
 
@@ -515,4 +516,5 @@ def statystyki(request):
         'progres_ciezar': [p['maks_ciezar'] for p in progres],
         'progres_1rm': [p['maks_1rm'] for p in progres],
         'rekordy': rekordy_uzytkownika(request.user),
+        'sredni_czas': formatuj_minuty(sredni_czas_treningu(request.user)),
     })
