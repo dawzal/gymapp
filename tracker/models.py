@@ -33,7 +33,6 @@ class PlanTreningowy(models.Model):
     opis = models.TextField(blank=True)
     uzytkownik = models.ForeignKey(User, on_delete=models.CASCADE)
     data_utworzenia = models.DateTimeField(auto_now_add=True)
-    czy_publiczny = models.BooleanField(default=False)
 
     def __str__(self):
         return self.nazwa

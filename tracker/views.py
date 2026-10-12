@@ -1,7 +1,9 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.db import transaction
 from django.db.models import Count
+from django.utils import timezone
 from .models import Cwiczenie, PlanTreningowy, CwiczeniePlanu, SesjaTreningowa, WpisDziennika
 from .forms import CwiczenieForm, PlanTreningowyForm, CwiczeniePlanuForm, SesjaForm, WpisForm
 
@@ -60,10 +62,8 @@ def edytuj_cwiczenie(request, pk):
 @login_required
 def lista_planow(request):
     moje_plany = PlanTreningowy.objects.filter(uzytkownik=request.user)
-    publiczne_plany = PlanTreningowy.objects.filter(czy_publiczny=True).exclude(uzytkownik=request.user)
     return render(request, 'tracker/lista_planow.html', {
         'moje_plany': moje_plany,
-        'publiczne_plany': publiczne_plany,
     })
 
 
@@ -161,21 +161,6 @@ def usun_plan(request, pk):
         messages.success(request, 'Plan treningowy został usunięty!')
         return redirect('lista_planow')
     return render(request, 'tracker/usun_plan.html', {'plan': plan})
-
-
-@login_required
-def rozpocznij_trening(request, plan_pk):
-    from datetime import date
-    plan = get_object_or_404(PlanTreningowy, pk=plan_pk, uzytkownik=request.user)
-    if request.method == 'POST':
-        sesja = SesjaTreningowa.objects.create(
-            uzytkownik=request.user,
-            data=date.today(),
-            nazwa=f"Trening: {plan.nazwa}",
-        )
-        messages.success(request, f'Rozpoczęto trening: {plan.nazwa}!')
-        return redirect('szczegoly_sesji', pk=sesja.pk)
-    return render(request, 'tracker/rozpocznij_trening.html', {'plan': plan})
 
 
 @login_required
@@ -311,22 +296,24 @@ def statystyki(request):
 
 @login_required
 def rozpocznij_trening(request, plan_pk):
-    from datetime import date
     plan = get_object_or_404(PlanTreningowy, pk=plan_pk, uzytkownik=request.user)
     if request.method == 'POST':
-        sesja = SesjaTreningowa.objects.create(
-            uzytkownik=request.user,
-            data=date.today(),
-            nazwa=f"Trening: {plan.nazwa}",
-        )
-        for cwiczenie_planu in plan.cwiczenia.all():
-            WpisDziennika.objects.create(
-                sesja=sesja,
-                cwiczenie=cwiczenie_planu.cwiczenie,
-                serie=cwiczenie_planu.serie,
-                powtorzenia=cwiczenie_planu.powtorzenia,
-                ciezar=cwiczenie_planu.ciezar,
+        with transaction.atomic():
+            sesja = SesjaTreningowa.objects.create(
+                uzytkownik=request.user,
+                data=timezone.localdate(),
+                nazwa=f"Trening: {plan.nazwa}",
             )
+            WpisDziennika.objects.bulk_create([
+                WpisDziennika(
+                    sesja=sesja,
+                    cwiczenie=c.cwiczenie,
+                    serie=c.serie,
+                    powtorzenia=c.powtorzenia,
+                    ciezar=c.ciezar,
+                )
+                for c in plan.cwiczenia.select_related('cwiczenie')
+            ])
         messages.success(request, f'Rozpoczęto trening: {plan.nazwa}!')
         return redirect('szczegoly_sesji', pk=sesja.pk)
     return render(request, 'tracker/rozpocznij_trening.html', {'plan': plan})

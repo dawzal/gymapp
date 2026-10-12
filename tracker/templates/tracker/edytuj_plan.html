@@ -23,11 +23,6 @@
                         {{ formularz.opis }}
                     </div>
 
-                    <div class="mb-3 form-check">
-                        {{ formularz.czy_publiczny }}
-                        <label class="form-check-label">{{ formularz.czy_publiczny.label }}</label>
-                    </div>
-
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-dark">Zapisz zmiany</button>
                         <a href="{% url 'szczegoly_planu' plan.pk %}" class="btn btn-outline-secondary">Anuluj</a>

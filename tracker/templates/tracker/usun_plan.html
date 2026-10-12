@@ -11,7 +11,7 @@
             </div>
             <div class="card-body">
                 <p>Czy na pewno chcesz usunąć plan treningowy <strong>{{ plan.nazwa }}</strong>?</p>
-                <p class="text-danger">Ta operacja jest nieodwracalna. Wszystkie dni i ćwiczenia w tym planie zostaną usunięte.</p>
+                <p class="text-danger">Ta operacja jest nieodwracalna. Wszystkie ćwiczenia w tym planie zostaną usunięte.</p>
                 <form method="post">
                     {% csrf_token %}
                     <div class="d-flex gap-2">

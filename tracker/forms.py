@@ -34,7 +34,7 @@ class CwiczenieForm(forms.ModelForm):
 class PlanTreningowyForm(forms.ModelForm):
     class Meta:
         model = PlanTreningowy
-        fields = ['nazwa', 'opis', 'czy_publiczny']
+        fields = ['nazwa', 'opis']
         widgets = {
             'nazwa': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -45,14 +45,10 @@ class PlanTreningowyForm(forms.ModelForm):
                 'rows': 3,
                 'placeholder': 'Opisz swój plan treningowy...'
             }),
-            'czy_publiczny': forms.CheckboxInput(attrs={
-                'class': 'form-check-input'
-            }),
         }
         labels = {
             'nazwa': 'Nazwa planu',
             'opis': 'Opis (opcjonalnie)',
-            'czy_publiczny': 'Widoczny dla innych użytkowników',
         }
 
 

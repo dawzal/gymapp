@@ -21,7 +21,7 @@
                 {% endif %}
                 <p class="card-text">
                     <small class="text-muted">
-                        Dni treningowe: {{ plan.dni.count }}
+                        Ćwiczeń w planie: {{ plan.cwiczenia.count }}
                     </small>
                 </p>
             </div>
@@ -38,26 +38,4 @@
 </div>
 {% endif %}
 
-{% if publiczne_plany %}
-<h4>Plany innych użytkowników</h4>
-<div class="row">
-    {% for plan in publiczne_plany %}
-    <div class="col-md-4 mb-3">
-        <div class="card h-100">
-            <div class="card-body">
-                <h5 class="card-title">{{ plan.nazwa }}</h5>
-                {% if plan.opis %}
-                <p class="card-text text-muted">{{ plan.opis|truncatechars:80 }}</p>
-                {% endif %}
-                <p class="card-text">
-                    <small class="text-muted">
-                        Autor: {{ plan.uzytkownik.username }}
-                    </small>
-                </p>
-            </div>
-        </div>
-    </div>
-    {% endfor %}
-</div>
-{% endif %}
 {% endblock %}
