@@ -165,3 +165,73 @@ class WalidacjaWpisuTest(BazowyTest):
         self.assertFalse(formularz.is_valid())
         self.assertIn('serie', formularz.errors)
         self.assertIn('ciezar', formularz.errors)
+
+
+class WlasneStronyTest(BazowyTest):
+    def setUp(self):
+        super().setUp()
+        self.plan = PlanTreningowy.objects.create(nazwa='Moj plan', uzytkownik=self.ania)
+        self.cwiczenie_planu = CwiczeniePlanu.objects.create(plan=self.plan, cwiczenie=self.publiczne)
+        self.sesja = SesjaTreningowa.objects.create(uzytkownik=self.ania, data=date(2025, 3, 7))
+        self.wpis = WpisDziennika.objects.create(
+            sesja=self.sesja, cwiczenie=self.publiczne, serie=3, powtorzenia=5, ciezar=60)
+
+    def test_wszystkie_strony_renderuja_sie(self):
+        adresy = [
+            reverse('dashboard'), reverse('lista_cwiczen'), reverse('dodaj_cwiczenie'),
+            reverse('edytuj_cwiczenie', args=[self.prywatne_ani.pk]),
+            reverse('lista_planow'), reverse('dodaj_plan'),
+            reverse('szczegoly_planu', args=[self.plan.pk]),
+            reverse('edytuj_plan', args=[self.plan.pk]),
+            reverse('usun_plan', args=[self.plan.pk]),
+            reverse('dodaj_cwiczenie_do_planu', args=[self.plan.pk]),
+            reverse('rozpocznij_trening', args=[self.plan.pk]),
+            reverse('edytuj_cwiczenie_planu', args=[self.cwiczenie_planu.pk]),
+            reverse('usun_cwiczenie_planu', args=[self.cwiczenie_planu.pk]),
+            reverse('kalkulator_1rm'), reverse('dziennik'), reverse('dodaj_sesje'),
+            reverse('szczegoly_sesji', args=[self.sesja.pk]),
+            reverse('edytuj_sesje', args=[self.sesja.pk]),
+            reverse('usun_sesje', args=[self.sesja.pk]),
+            reverse('edytuj_wpis', args=[self.wpis.pk]),
+            reverse('usun_wpis', args=[self.wpis.pk]),
+            reverse('statystyki'),
+        ]
+        for adres in adresy:
+            with self.subTest(adres=adres):
+                self.assertEqual(self.client.get(adres).status_code, 200)
+
+    def test_formularz_edycji_sesji_ma_date_w_formacie_iso(self):
+        odpowiedz = self.client.get(reverse('edytuj_sesje', args=[self.sesja.pk]))
+        self.assertContains(odpowiedz, 'value="2025-03-07"')
+
+    def test_blad_walidacji_jest_widoczny(self):
+        odpowiedz = self.client.post(reverse('dodaj_cwiczenie_do_planu', args=[self.plan.pk]), {
+            'cwiczenie': self.publiczne.pk, 'serie': 0, 'powtorzenia': 5, 'ciezar': '10',
+        })
+        self.assertEqual(odpowiedz.status_code, 200)
+        self.assertContains(odpowiedz, 'text-danger')
+        self.assertEqual(self.plan.cwiczenia.count(), 1)
+
+    def test_tworzenie_planu_i_cwiczenia(self):
+        self.client.post(reverse('dodaj_plan'), {'nazwa': 'Nowy plan', 'opis': ''})
+        plan = PlanTreningowy.objects.get(nazwa='Nowy plan')
+        self.assertEqual(plan.uzytkownik, self.ania)
+        self.client.post(reverse('dodaj_cwiczenie_do_planu', args=[plan.pk]), {
+            'cwiczenie': self.publiczne.pk, 'serie': 4, 'powtorzenia': 8, 'ciezar': '40', 'notatki': '',
+        })
+        self.assertEqual(plan.cwiczenia.count(), 1)
+
+    def test_edycja_wpisu(self):
+        self.client.post(reverse('edytuj_wpis', args=[self.wpis.pk]), {
+            'cwiczenie': self.publiczne.pk, 'serie': 5, 'powtorzenia': 3, 'ciezar': '70', 'notatki': '',
+        })
+        self.wpis.refresh_from_db()
+        self.assertEqual((self.wpis.serie, self.wpis.powtorzenia), (5, 3))
+
+    def test_usuniecie_dziala_tylko_przez_post(self):
+        self.client.get(reverse('usun_sesje', args=[self.sesja.pk]))
+        self.assertTrue(SesjaTreningowa.objects.filter(pk=self.sesja.pk).exists())
+        odpowiedz = self.client.post(reverse('usun_sesje', args=[self.sesja.pk]))
+        self.assertRedirects(odpowiedz, reverse('dziennik'))
+        self.assertFalse(SesjaTreningowa.objects.filter(pk=self.sesja.pk).exists())
+        self.assertFalse(WpisDziennika.objects.filter(pk=self.wpis.pk).exists())

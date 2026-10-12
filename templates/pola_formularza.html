@@ -1,0 +1,18 @@
+{% for blad in formularz.non_field_errors %}
+<div class="alert alert-danger">{{ blad }}</div>
+{% endfor %}
+{% for pole in formularz %}
+{% if pole.field.widget.input_type == 'checkbox' %}
+<div class="mb-3 form-check">
+    {{ pole }}
+    <label class="form-check-label" for="{{ pole.id_for_label }}">{{ pole.label }}</label>
+    {% for blad in pole.errors %}<div class="text-danger small">{{ blad }}</div>{% endfor %}
+</div>
+{% else %}
+<div class="mb-3">
+    <label class="form-label" for="{{ pole.id_for_label }}">{{ pole.label }}</label>
+    {{ pole }}
+    {% for blad in pole.errors %}<div class="text-danger small">{{ blad }}</div>{% endfor %}
+</div>
+{% endif %}
+{% endfor %}

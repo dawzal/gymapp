@@ -66,32 +66,7 @@
             <div class="card-body">
                 <form method="post">
                     {% csrf_token %}
-
-                    <div class="mb-2">
-                        <label class="form-label">{{ formularz.cwiczenie.label }}</label>
-                        {{ formularz.cwiczenie }}
-                    </div>
-
-                    <div class="row">
-                        <div class="col-6 mb-2">
-                            <label class="form-label">{{ formularz.serie.label }}</label>
-                            {{ formularz.serie }}
-                        </div>
-                        <div class="col-6 mb-2">
-                            <label class="form-label">{{ formularz.powtorzenia.label }}</label>
-                            {{ formularz.powtorzenia }}
-                        </div>
-                    </div>
-
-                    <div class="mb-2">
-                        <label class="form-label">{{ formularz.ciezar.label }}</label>
-                        {{ formularz.ciezar }}
-                    </div>
-
-                    <div class="mb-2">
-                        <label class="form-label">{{ formularz.notatki.label }}</label>
-                        {{ formularz.notatki }}
-                    </div>
+                    {% include 'pola_formularza.html' %}
 
                     <button type="submit" class="btn btn-dark w-100">Zapisz ćwiczenie</button>
                 </form>

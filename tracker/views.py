@@ -1,21 +1,46 @@
 import math
 
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Count
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
-from .models import Cwiczenie, PlanTreningowy, CwiczeniePlanu, SesjaTreningowa, WpisDziennika
-from .forms import CwiczenieForm, PlanTreningowyForm, CwiczeniePlanuForm, SesjaForm, WpisForm
+
+from .forms import CwiczenieForm, CwiczeniePlanuForm, PlanTreningowyForm, SesjaForm, WpisForm
+from .models import Cwiczenie, CwiczeniePlanu, PlanTreningowy, SesjaTreningowa, WpisDziennika
+
+
+def pokaz_formularz(request, formularz, tytul, przycisk, anuluj, podtytul=''):
+    return render(request, 'formularz.html', {
+        'formularz': formularz,
+        'tytul': tytul,
+        'podtytul': podtytul,
+        'przycisk': przycisk,
+        'anuluj': anuluj,
+    })
+
+
+def usun_obiekt(request, obiekt, tytul, opis, ostrzezenie, anuluj, po_usunieciu, komunikat):
+    if request.method == 'POST':
+        obiekt.delete()
+        messages.success(request, komunikat)
+        return redirect(po_usunieciu)
+    return render(request, 'potwierdz_usuniecie.html', {
+        'tytul': tytul,
+        'opis': opis,
+        'ostrzezenie': ostrzezenie,
+        'anuluj': anuluj,
+    })
 
 
 @login_required
 def dashboard(request):
-    moje_plany = PlanTreningowy.objects.filter(uzytkownik=request.user)[:3]
-    return render(request, 'tracker/dashboard.html', {
-        'moje_plany': moje_plany,
-    })
+    moje_plany = PlanTreningowy.objects.filter(uzytkownik=request.user).annotate(
+        liczba_cwiczen=Count('cwiczenia')
+    )[:3]
+    return render(request, 'tracker/dashboard.html', {'moje_plany': moje_plany})
 
 
 @login_required
@@ -33,135 +58,157 @@ def lista_cwiczen(request):
 
 @login_required
 def dodaj_cwiczenie(request):
-    if request.method == 'POST':
-        formularz = CwiczenieForm(request.POST)
-        if formularz.is_valid():
-            cwiczenie = formularz.save(commit=False)
-            cwiczenie.dodane_przez = request.user
-            cwiczenie.save()
-            messages.success(request, 'Ćwiczenie zostało dodane!')
-            return redirect('lista_cwiczen')
-    else:
-        formularz = CwiczenieForm()
-    return render(request, 'tracker/dodaj_cwiczenie.html', {'formularz': formularz})
+    formularz = CwiczenieForm(request.POST or None)
+    if formularz.is_valid():
+        cwiczenie = formularz.save(commit=False)
+        cwiczenie.dodane_przez = request.user
+        cwiczenie.save()
+        messages.success(request, 'Ćwiczenie zostało dodane!')
+        return redirect('lista_cwiczen')
+    return pokaz_formularz(
+        request, formularz, 'Dodaj nowe ćwiczenie', 'Zapisz ćwiczenie', reverse('lista_cwiczen'))
 
 
 @login_required
 def edytuj_cwiczenie(request, pk):
     cwiczenie = get_object_or_404(Cwiczenie, pk=pk, dodane_przez=request.user)
-    if request.method == 'POST':
-        formularz = CwiczenieForm(request.POST, instance=cwiczenie)
-        if formularz.is_valid():
-            formularz.save()
-            messages.success(request, 'Ćwiczenie zostało zaktualizowane!')
-            return redirect('lista_cwiczen')
-    else:
-        formularz = CwiczenieForm(instance=cwiczenie)
-    return render(request, 'tracker/edytuj_cwiczenie.html', {'formularz': formularz, 'cwiczenie': cwiczenie})
+    formularz = CwiczenieForm(request.POST or None, instance=cwiczenie)
+    if formularz.is_valid():
+        formularz.save()
+        messages.success(request, 'Ćwiczenie zostało zaktualizowane!')
+        return redirect('lista_cwiczen')
+    return pokaz_formularz(
+        request, formularz, f'Edytuj ćwiczenie: {cwiczenie.nazwa}', 'Zapisz zmiany',
+        reverse('lista_cwiczen'))
 
 
 @login_required
 def lista_planow(request):
-    moje_plany = PlanTreningowy.objects.filter(uzytkownik=request.user)
-    return render(request, 'tracker/lista_planow.html', {
-        'moje_plany': moje_plany,
-    })
+    moje_plany = PlanTreningowy.objects.filter(uzytkownik=request.user).annotate(
+        liczba_cwiczen=Count('cwiczenia')
+    )
+    return render(request, 'tracker/lista_planow.html', {'moje_plany': moje_plany})
 
 
 @login_required
 def dodaj_plan(request):
-    if request.method == 'POST':
-        formularz = PlanTreningowyForm(request.POST)
-        if formularz.is_valid():
-            plan = formularz.save(commit=False)
-            plan.uzytkownik = request.user
-            plan.save()
-            messages.success(request, 'Plan treningowy został utworzony!')
-            return redirect('szczegoly_planu', pk=plan.pk)
-    else:
-        formularz = PlanTreningowyForm()
-    return render(request, 'tracker/dodaj_plan.html', {'formularz': formularz})
+    formularz = PlanTreningowyForm(request.POST or None)
+    if formularz.is_valid():
+        plan = formularz.save(commit=False)
+        plan.uzytkownik = request.user
+        plan.save()
+        messages.success(request, 'Plan treningowy został utworzony!')
+        return redirect('szczegoly_planu', pk=plan.pk)
+    return pokaz_formularz(
+        request, formularz, 'Utwórz nowy plan treningowy', 'Utwórz plan', reverse('lista_planow'))
 
 
 @login_required
 def szczegoly_planu(request, pk):
     plan = get_object_or_404(PlanTreningowy, pk=pk, uzytkownik=request.user)
     cwiczenia = plan.cwiczenia.select_related('cwiczenie')
-    return render(request, 'tracker/szczegoly_planu.html', {
-        'plan': plan,
-        'cwiczenia': cwiczenia,
-    })
-
-
-@login_required
-def dodaj_cwiczenie_do_planu(request, plan_pk):
-    plan = get_object_or_404(PlanTreningowy, pk=plan_pk, uzytkownik=request.user)
-    if request.method == 'POST':
-        formularz = CwiczeniePlanuForm(request.POST, uzytkownik=request.user)
-        if formularz.is_valid():
-            cwiczenie_planu = formularz.save(commit=False)
-            cwiczenie_planu.plan = plan
-            cwiczenie_planu.save()
-            messages.success(request, 'Ćwiczenie dodane do planu!')
-            return redirect('szczegoly_planu', pk=plan.pk)
-    else:
-        formularz = CwiczeniePlanuForm(uzytkownik=request.user)
-    return render(request, 'tracker/dodaj_cwiczenie_do_planu.html', {
-        'formularz': formularz,
-        'plan': plan,
-    })
-
-
-@login_required
-def edytuj_cwiczenie_planu(request, pk):
-    cwiczenie_planu = get_object_or_404(CwiczeniePlanu, pk=pk, plan__uzytkownik=request.user)
-    if request.method == 'POST':
-        formularz = CwiczeniePlanuForm(request.POST, instance=cwiczenie_planu, uzytkownik=request.user)
-        if formularz.is_valid():
-            formularz.save()
-            messages.success(request, 'Ćwiczenie zostało zaktualizowane!')
-            return redirect('szczegoly_planu', pk=cwiczenie_planu.plan.pk)
-    else:
-        formularz = CwiczeniePlanuForm(instance=cwiczenie_planu, uzytkownik=request.user)
-    return render(request, 'tracker/edytuj_cwiczenie_planu.html', {
-        'formularz': formularz,
-        'cwiczenie_planu': cwiczenie_planu,
-    })
-
-
-@login_required
-def usun_cwiczenie_planu(request, pk):
-    cwiczenie_planu = get_object_or_404(CwiczeniePlanu, pk=pk, plan__uzytkownik=request.user)
-    plan_pk = cwiczenie_planu.plan.pk
-    if request.method == 'POST':
-        cwiczenie_planu.delete()
-        messages.success(request, 'Ćwiczenie zostało usunięte z planu!')
-        return redirect('szczegoly_planu', pk=plan_pk)
-    return render(request, 'tracker/usun_cwiczenie_planu.html', {'cwiczenie_planu': cwiczenie_planu})
+    return render(request, 'tracker/szczegoly_planu.html', {'plan': plan, 'cwiczenia': cwiczenia})
 
 
 @login_required
 def edytuj_plan(request, pk):
     plan = get_object_or_404(PlanTreningowy, pk=pk, uzytkownik=request.user)
-    if request.method == 'POST':
-        formularz = PlanTreningowyForm(request.POST, instance=plan)
-        if formularz.is_valid():
-            formularz.save()
-            messages.success(request, 'Plan treningowy został zaktualizowany!')
-            return redirect('szczegoly_planu', pk=plan.pk)
-    else:
-        formularz = PlanTreningowyForm(instance=plan)
-    return render(request, 'tracker/edytuj_plan.html', {'formularz': formularz, 'plan': plan})
+    formularz = PlanTreningowyForm(request.POST or None, instance=plan)
+    if formularz.is_valid():
+        formularz.save()
+        messages.success(request, 'Plan treningowy został zaktualizowany!')
+        return redirect('szczegoly_planu', pk=plan.pk)
+    return pokaz_formularz(
+        request, formularz, f'Edytuj plan: {plan.nazwa}', 'Zapisz zmiany',
+        reverse('szczegoly_planu', args=[plan.pk]))
 
 
 @login_required
 def usun_plan(request, pk):
     plan = get_object_or_404(PlanTreningowy, pk=pk, uzytkownik=request.user)
+    return usun_obiekt(
+        request, plan,
+        tytul='Usuń plan',
+        opis=f'Czy na pewno chcesz usunąć plan treningowy "{plan.nazwa}"?',
+        ostrzezenie='Ta operacja jest nieodwracalna. Wszystkie ćwiczenia w tym planie zostaną usunięte.',
+        anuluj=reverse('szczegoly_planu', args=[plan.pk]),
+        po_usunieciu='lista_planow',
+        komunikat='Plan treningowy został usunięty!',
+    )
+
+
+@login_required
+def dodaj_cwiczenie_do_planu(request, plan_pk):
+    plan = get_object_or_404(PlanTreningowy, pk=plan_pk, uzytkownik=request.user)
+    formularz = CwiczeniePlanuForm(request.POST or None, uzytkownik=request.user)
+    if formularz.is_valid():
+        cwiczenie_planu = formularz.save(commit=False)
+        cwiczenie_planu.plan = plan
+        cwiczenie_planu.save()
+        messages.success(request, 'Ćwiczenie dodane do planu!')
+        return redirect('szczegoly_planu', pk=plan.pk)
+    return pokaz_formularz(
+        request, formularz, f'Dodaj ćwiczenie do planu: {plan.nazwa}', 'Dodaj ćwiczenie',
+        reverse('szczegoly_planu', args=[plan.pk]))
+
+
+@login_required
+def edytuj_cwiczenie_planu(request, pk):
+    cwiczenie_planu = get_object_or_404(
+        CwiczeniePlanu.objects.select_related('plan', 'cwiczenie'),
+        pk=pk, plan__uzytkownik=request.user)
+    formularz = CwiczeniePlanuForm(
+        request.POST or None, instance=cwiczenie_planu, uzytkownik=request.user)
+    if formularz.is_valid():
+        formularz.save()
+        messages.success(request, 'Ćwiczenie zostało zaktualizowane!')
+        return redirect('szczegoly_planu', pk=cwiczenie_planu.plan.pk)
+    return pokaz_formularz(
+        request, formularz, f'Edytuj ćwiczenie: {cwiczenie_planu.cwiczenie.nazwa}', 'Zapisz zmiany',
+        reverse('szczegoly_planu', args=[cwiczenie_planu.plan.pk]),
+        podtytul=f'Plan: {cwiczenie_planu.plan.nazwa}')
+
+
+@login_required
+def usun_cwiczenie_planu(request, pk):
+    cwiczenie_planu = get_object_or_404(
+        CwiczeniePlanu.objects.select_related('plan', 'cwiczenie'),
+        pk=pk, plan__uzytkownik=request.user)
+    plan_pk = cwiczenie_planu.plan.pk
+    return usun_obiekt(
+        request, cwiczenie_planu,
+        tytul='Usuń ćwiczenie z planu',
+        opis=f'Czy na pewno chcesz usunąć ćwiczenie "{cwiczenie_planu.cwiczenie.nazwa}" z planu "{cwiczenie_planu.plan.nazwa}"?',
+        ostrzezenie='Ta operacja jest nieodwracalna.',
+        anuluj=reverse('szczegoly_planu', args=[plan_pk]),
+        po_usunieciu=reverse('szczegoly_planu', args=[plan_pk]),
+        komunikat='Ćwiczenie zostało usunięte z planu!',
+    )
+
+
+@login_required
+def rozpocznij_trening(request, plan_pk):
+    plan = get_object_or_404(PlanTreningowy, pk=plan_pk, uzytkownik=request.user)
     if request.method == 'POST':
-        plan.delete()
-        messages.success(request, 'Plan treningowy został usunięty!')
-        return redirect('lista_planow')
-    return render(request, 'tracker/usun_plan.html', {'plan': plan})
+        with transaction.atomic():
+            sesja = SesjaTreningowa.objects.create(
+                uzytkownik=request.user,
+                data=timezone.localdate(),
+                nazwa=f"Trening: {plan.nazwa}",
+            )
+            WpisDziennika.objects.bulk_create([
+                WpisDziennika(
+                    sesja=sesja,
+                    cwiczenie=c.cwiczenie,
+                    serie=c.serie,
+                    powtorzenia=c.powtorzenia,
+                    ciezar=c.ciezar,
+                )
+                for c in plan.cwiczenia.select_related('cwiczenie')
+            ])
+        messages.success(request, f'Rozpoczęto trening: {plan.nazwa}!')
+        return redirect('szczegoly_sesji', pk=sesja.pk)
+    return render(request, 'tracker/rozpocznij_trening.html', {'plan': plan})
 
 
 @login_required
@@ -172,36 +219,30 @@ def dziennik(request):
 
 @login_required
 def dodaj_sesje(request):
-    if request.method == 'POST':
-        formularz = SesjaForm(request.POST)
-        if formularz.is_valid():
-            sesja = formularz.save(commit=False)
-            sesja.uzytkownik = request.user
-            sesja.save()
-            messages.success(request, 'Sesja treningowa dodana!')
-            return redirect('szczegoly_sesji', pk=sesja.pk)
-    else:
-        formularz = SesjaForm()
-    return render(request, 'tracker/dodaj_sesje.html', {'formularz': formularz})
+    formularz = SesjaForm(request.POST or None)
+    if formularz.is_valid():
+        sesja = formularz.save(commit=False)
+        sesja.uzytkownik = request.user
+        sesja.save()
+        messages.success(request, 'Sesja treningowa dodana!')
+        return redirect('szczegoly_sesji', pk=sesja.pk)
+    return pokaz_formularz(
+        request, formularz, 'Dodaj sesję treningową', 'Zapisz sesję', reverse('dziennik'))
 
 
 @login_required
 def szczegoly_sesji(request, pk):
     sesja = get_object_or_404(SesjaTreningowa, pk=pk, uzytkownik=request.user)
-    wpisy = sesja.wpisy.select_related('cwiczenie')
-    if request.method == 'POST':
-        formularz = WpisForm(request.POST, uzytkownik=request.user)
-        if formularz.is_valid():
-            wpis = formularz.save(commit=False)
-            wpis.sesja = sesja
-            wpis.save()
-            messages.success(request, 'Ćwiczenie zapisane!')
-            return redirect('szczegoly_sesji', pk=sesja.pk)
-    else:
-        formularz = WpisForm(uzytkownik=request.user)
+    formularz = WpisForm(request.POST or None, uzytkownik=request.user)
+    if formularz.is_valid():
+        wpis = formularz.save(commit=False)
+        wpis.sesja = sesja
+        wpis.save()
+        messages.success(request, 'Ćwiczenie zapisane!')
+        return redirect('szczegoly_sesji', pk=sesja.pk)
     return render(request, 'tracker/szczegoly_sesji.html', {
         'sesja': sesja,
-        'wpisy': wpisy,
+        'wpisy': sesja.wpisy.select_related('cwiczenie'),
         'formularz': formularz,
     })
 
@@ -209,53 +250,61 @@ def szczegoly_sesji(request, pk):
 @login_required
 def edytuj_sesje(request, pk):
     sesja = get_object_or_404(SesjaTreningowa, pk=pk, uzytkownik=request.user)
-    if request.method == 'POST':
-        formularz = SesjaForm(request.POST, instance=sesja)
-        if formularz.is_valid():
-            formularz.save()
-            messages.success(request, 'Sesja została zaktualizowana!')
-            return redirect('szczegoly_sesji', pk=sesja.pk)
-    else:
-        formularz = SesjaForm(instance=sesja)
-    return render(request, 'tracker/edytuj_sesje.html', {'formularz': formularz, 'sesja': sesja})
+    formularz = SesjaForm(request.POST or None, instance=sesja)
+    if formularz.is_valid():
+        formularz.save()
+        messages.success(request, 'Sesja została zaktualizowana!')
+        return redirect('szczegoly_sesji', pk=sesja.pk)
+    return pokaz_formularz(
+        request, formularz, 'Edytuj sesję treningową', 'Zapisz zmiany',
+        reverse('szczegoly_sesji', args=[sesja.pk]))
 
 
 @login_required
 def usun_sesje(request, pk):
     sesja = get_object_or_404(SesjaTreningowa, pk=pk, uzytkownik=request.user)
-    if request.method == 'POST':
-        sesja.delete()
-        messages.success(request, 'Sesja treningowa została usunięta!')
-        return redirect('dziennik')
-    return render(request, 'tracker/usun_sesje.html', {'sesja': sesja})
+    return usun_obiekt(
+        request, sesja,
+        tytul='Usuń sesję',
+        opis=f'Czy na pewno chcesz usunąć sesję treningową z dnia {sesja.data:%d.%m.%Y}?',
+        ostrzezenie='Ta operacja jest nieodwracalna. Wszystkie wpisy z tej sesji zostaną usunięte.',
+        anuluj=reverse('szczegoly_sesji', args=[sesja.pk]),
+        po_usunieciu='dziennik',
+        komunikat='Sesja treningowa została usunięta!',
+    )
 
 
 @login_required
 def edytuj_wpis(request, pk):
-    wpis = get_object_or_404(WpisDziennika, pk=pk, sesja__uzytkownik=request.user)
-    if request.method == 'POST':
-        formularz = WpisForm(request.POST, instance=wpis, uzytkownik=request.user)
-        if formularz.is_valid():
-            formularz.save()
-            messages.success(request, 'Wpis został zaktualizowany!')
-            return redirect('szczegoly_sesji', pk=wpis.sesja.pk)
-    else:
-        formularz = WpisForm(instance=wpis, uzytkownik=request.user)
-    return render(request, 'tracker/edytuj_wpis.html', {
-        'formularz': formularz,
-        'wpis': wpis,
-    })
+    wpis = get_object_or_404(
+        WpisDziennika.objects.select_related('sesja', 'cwiczenie'),
+        pk=pk, sesja__uzytkownik=request.user)
+    formularz = WpisForm(request.POST or None, instance=wpis, uzytkownik=request.user)
+    if formularz.is_valid():
+        formularz.save()
+        messages.success(request, 'Wpis został zaktualizowany!')
+        return redirect('szczegoly_sesji', pk=wpis.sesja.pk)
+    return pokaz_formularz(
+        request, formularz, f'Edytuj wpis: {wpis.cwiczenie.nazwa}', 'Zapisz zmiany',
+        reverse('szczegoly_sesji', args=[wpis.sesja.pk]),
+        podtytul=f'Sesja: {wpis.sesja.data:%d.%m.%Y}')
 
 
 @login_required
 def usun_wpis(request, pk):
-    wpis = get_object_or_404(WpisDziennika, pk=pk, sesja__uzytkownik=request.user)
+    wpis = get_object_or_404(
+        WpisDziennika.objects.select_related('sesja', 'cwiczenie'),
+        pk=pk, sesja__uzytkownik=request.user)
     sesja_pk = wpis.sesja.pk
-    if request.method == 'POST':
-        wpis.delete()
-        messages.success(request, 'Wpis został usunięty!')
-        return redirect('szczegoly_sesji', pk=sesja_pk)
-    return render(request, 'tracker/usun_wpis.html', {'wpis': wpis})
+    return usun_obiekt(
+        request, wpis,
+        tytul='Usuń wpis',
+        opis=f'Czy na pewno chcesz usunąć wpis: {wpis.cwiczenie.nazwa} - {wpis.serie}x{wpis.powtorzenia} @ {wpis.ciezar} kg?',
+        ostrzezenie='Ta operacja jest nieodwracalna.',
+        anuluj=reverse('szczegoly_sesji', args=[sesja_pk]),
+        po_usunieciu=reverse('szczegoly_sesji', args=[sesja_pk]),
+        komunikat='Wpis został usunięty!',
+    )
 
 
 PROCENTY_1RM = [
@@ -316,28 +365,3 @@ def statystyki(request):
         'etykiety_wykresu': [d['data'].isoformat() for d in ostatnie_dni],
         'wartosci_wykresu': [d['liczba_cwiczen'] for d in ostatnie_dni],
     })
-
-
-@login_required
-def rozpocznij_trening(request, plan_pk):
-    plan = get_object_or_404(PlanTreningowy, pk=plan_pk, uzytkownik=request.user)
-    if request.method == 'POST':
-        with transaction.atomic():
-            sesja = SesjaTreningowa.objects.create(
-                uzytkownik=request.user,
-                data=timezone.localdate(),
-                nazwa=f"Trening: {plan.nazwa}",
-            )
-            WpisDziennika.objects.bulk_create([
-                WpisDziennika(
-                    sesja=sesja,
-                    cwiczenie=c.cwiczenie,
-                    serie=c.serie,
-                    powtorzenia=c.powtorzenia,
-                    ciezar=c.ciezar,
-                )
-                for c in plan.cwiczenia.select_related('cwiczenie')
-            ])
-        messages.success(request, f'Rozpoczęto trening: {plan.nazwa}!')
-        return redirect('szczegoly_sesji', pk=sesja.pk)
-    return render(request, 'tracker/rozpocznij_trening.html', {'plan': plan})
