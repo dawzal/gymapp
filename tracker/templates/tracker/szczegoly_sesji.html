@@ -7,6 +7,8 @@
     .tabela-serii tbody { counter-reset: seria; }
     .tabela-serii tbody tr { counter-increment: seria; }
     .tabela-serii td.numer::before { content: counter(seria); }
+    .tabela-serii tr.seria-usunieta td { opacity: .5; }
+    .tabela-serii tr.seria-usunieta input[type="number"] { text-decoration: line-through; }
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -71,7 +73,10 @@
                                         {{ form.ciezar }}
                                         {% for blad in form.ciezar.errors %}<div class="text-danger small">{{ blad }}</div>{% endfor %}
                                     </td>
-                                    <td>{{ form.DELETE }}</td>
+                                    <td>
+                                        <div class="d-none">{{ form.DELETE }}</div>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" data-przelacz-usuniecie>Usuń</button>
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -88,9 +93,10 @@
                             <td><button type="button" class="btn-close" data-usun-wiersz aria-label="Usuń wiersz"></button></td>
                         </tr>
                     </template>
-                    <div class="d-flex gap-2">
+                    <div class="d-flex gap-2 align-items-center">
                         <button type="button" class="btn btn-outline-dark btn-sm" data-dodaj-serie="{{ zestaw.prefix }}">+ Seria</button>
                         <button type="submit" class="btn btn-dark btn-sm">Zapisz serie</button>
+                        <span class="text-muted small">Zmiany i usunięcia zapisują się po kliknięciu "Zapisz serie".</span>
                     </div>
                 </form>
             </div>
@@ -132,9 +138,24 @@
             licznik.value = parseInt(licznik.value, 10) + 1;
         });
     });
+    function ustawStanUsuniecia(wiersz) {
+        const pole = wiersz.querySelector('input[type="checkbox"]');
+        const przycisk = wiersz.querySelector('[data-przelacz-usuniecie]');
+        wiersz.classList.toggle('seria-usunieta', pole.checked);
+        przycisk.textContent = pole.checked ? 'Przywróć' : 'Usuń';
+    }
+    document.querySelectorAll('[data-przelacz-usuniecie]').forEach(function (przycisk) {
+        ustawStanUsuniecia(przycisk.closest('tr'));
+    });
     document.addEventListener('click', function (zdarzenie) {
         if (zdarzenie.target.matches('[data-usun-wiersz]')) {
             zdarzenie.target.closest('tr').remove();
+        }
+        if (zdarzenie.target.matches('[data-przelacz-usuniecie]')) {
+            const wiersz = zdarzenie.target.closest('tr');
+            const pole = wiersz.querySelector('input[type="checkbox"]');
+            pole.checked = !pole.checked;
+            ustawStanUsuniecia(wiersz);
         }
     });
 </script>

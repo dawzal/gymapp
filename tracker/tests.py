@@ -481,3 +481,15 @@ class GotowePlanyTest(BazowyTest):
         kopia = PlanTreningowy.objects.get(uzytkownik=self.ania)
         odpowiedz = self.client.get(reverse('szczegoly_planu', args=[kopia.pk]))
         self.assertContains(odpowiedz, 'data-bs-toggle="tooltip" title="Wskazowka"')
+
+
+class PrzyciskUsuwaniaSeriiTest(BazowyTest):
+    def test_kazda_zapisana_seria_ma_przycisk_usuwania(self):
+        sesja = SesjaTreningowa.objects.create(uzytkownik=self.ania, data=date.today())
+        utworz_wpis(sesja, self.publiczne, serie=((8, 60), (7, 60), (5, 60)))
+        odpowiedz = self.client.get(reverse('szczegoly_sesji', args=[sesja.pk]))
+        self.assertContains(
+            odpowiedz,
+            '<button type="button" class="btn btn-sm btn-outline-danger" data-przelacz-usuniecie>',
+            count=3,
+        )

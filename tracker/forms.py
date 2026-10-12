@@ -197,6 +197,10 @@ class SeriaForm(forms.ModelForm):
                 'class': 'form-control form-control-sm', 'min': 0, 'step': '0.5'}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['powtorzenia'].widget.attrs['min'] = 1
+
 
 SeriaFormSet = inlineformset_factory(
     WpisDziennika, SeriaWpisu, form=SeriaForm, extra=0, can_delete=True)
