@@ -59,7 +59,8 @@
 </div>
 {% else %}
 <div class="alert alert-info">
-    Nie masz jeszcze żadnych planów. <a href="{% url 'dodaj_plan' %}">Utwórz pierwszy plan!</a>
+    Nie masz jeszcze żadnych planów. <a href="{% url 'gotowe_plany' %}">Zacznij od gotowego planu</a>
+    albo <a href="{% url 'dodaj_plan' %}">utwórz własny</a>.
 </div>
 {% endif %}
 {% endblock %}

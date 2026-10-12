@@ -39,7 +39,12 @@
                         <tbody>
                             {% for wpis in wpisy %}
                                 <tr>
-                                    <td>{{ wpis.cwiczenie.nazwa }}</td>
+                                    <td>
+                                        {{ wpis.cwiczenie.nazwa }}
+                                        {% if wpis.notatki %}
+                                        <span class="badge bg-secondary ms-1" data-bs-toggle="tooltip" title="{{ wpis.notatki }}" tabindex="0">notatka</span>
+                                        {% endif %}
+                                    </td>
                                     <td>{{ wpis.serie }}</td>
                                     <td>{{ wpis.powtorzenia }}</td>
                                     <td>{{ wpis.ciezar }} kg</td>

@@ -32,18 +32,21 @@
                         <th>Serie</th>
                         <th>Powtórzenia</th>
                         <th>Ciężar (kg)</th>
-                        <th>Notatki</th>
                         <th></th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for c in cwiczenia %}
                         <tr>
-                            <td>{{ c.cwiczenie.nazwa }}</td>
+                            <td>
+                                {{ c.cwiczenie.nazwa }}
+                                {% if c.notatki %}
+                                <span class="badge bg-secondary ms-1" data-bs-toggle="tooltip" title="{{ c.notatki }}" tabindex="0">notatka</span>
+                                {% endif %}
+                            </td>
                             <td>{{ c.serie }}</td>
                             <td>{{ c.powtorzenia }}</td>
                             <td>{{ c.ciezar }}</td>
-                            <td>{{ c.notatki|default:"-" }}</td>
                             <td>
                                 <a href="{% url 'edytuj_cwiczenie_planu' c.pk %}" class="btn btn-sm btn-outline-dark">Edytuj</a>
                                 <a href="{% url 'usun_cwiczenie_planu' c.pk %}" class="btn btn-sm btn-outline-danger">Usuń</a>

@@ -201,6 +201,25 @@ def usun_cwiczenie_planu(request, pk):
 
 
 @login_required
+def gotowe_plany(request):
+    plany = PlanTreningowy.objects.filter(uzytkownik__isnull=True).prefetch_related(
+        'cwiczenia__cwiczenie'
+    ).order_by('poziom', 'nazwa')
+    return render(request, 'tracker/gotowe_plany.html', {'plany': plany})
+
+
+@login_required
+def uzyj_gotowego_planu(request, pk):
+    szablon = get_object_or_404(PlanTreningowy, pk=pk, uzytkownik__isnull=True)
+    if request.method != 'POST':
+        return redirect('gotowe_plany')
+    with transaction.atomic():
+        kopia = szablon.kopiuj_dla(request.user)
+    messages.success(request, f'Plan "{kopia.nazwa}" został dodany do Twoich planów. Możesz go dowolnie edytować.')
+    return redirect('szczegoly_planu', pk=kopia.pk)
+
+
+@login_required
 def rozpocznij_trening(request, plan_pk):
     plan = get_object_or_404(PlanTreningowy, pk=plan_pk, uzytkownik=request.user)
     if request.method != 'POST':
@@ -222,6 +241,7 @@ def rozpocznij_trening(request, plan_pk):
                 serie=c.serie,
                 powtorzenia=c.powtorzenia,
                 ciezar=c.ciezar,
+                notatki=c.notatki,
             )
             for c in cwiczenia
         ])

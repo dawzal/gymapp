@@ -6,7 +6,8 @@ Aplikacja webowa w Django do planowania treningów siłowych i prowadzenia dzien
 
 - rejestracja, logowanie i wylogowanie użytkowników,
 - baza ćwiczeń (domyślne publiczne oraz własne, publiczne lub prywatne),
-- plany treningowe z ćwiczeniami (serie, powtórzenia, ciężar),
+- plany treningowe z ćwiczeniami (serie, powtórzenia, ciężar, notatki wyświetlane jako dymek),
+- gotowe plany dla początkujących i średniozaawansowanych (dodawane jako własna, edytowalna kopia),
 - rozpoczęcie treningu z planu: automatyczne utworzenie sesji z wpisami,
 - dziennik treningów (sesje i wpisy, edycja i usuwanie),
 - statystyki: najczęstsze ćwiczenia i wykres aktywności z ostatnich 10 dni treningowych,
@@ -31,7 +32,7 @@ python manage.py runserver
 ```
 
 Aplikacja będzie dostępna pod adresem http://127.0.0.1:8000/.
-Komenda `wypelnij_baze` dodaje domyślne ćwiczenia (można ją uruchamiać wielokrotnie).
+Komenda `wypelnij_baze` dodaje domyślne ćwiczenia oraz gotowe plany (można ją uruchamiać wielokrotnie).
 
 ## Testy
 

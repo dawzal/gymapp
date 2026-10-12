@@ -35,10 +35,31 @@ class Cwiczenie(models.Model):
 
 
 class PlanTreningowy(models.Model):
+    POZIOMY = [
+        ('poczatkujacy', 'Początkujący'),
+        ('sredni', 'Średniozaawansowany'),
+    ]
+
     nazwa = models.CharField(max_length=100)
     opis = models.TextField(blank=True)
-    uzytkownik = models.ForeignKey(User, on_delete=models.CASCADE)
+    uzytkownik = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    poziom = models.CharField(max_length=20, choices=POZIOMY, blank=True)
     data_utworzenia = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def czy_gotowy(self):
+        return self.uzytkownik_id is None
+
+    def kopiuj_dla(self, uzytkownik):
+        kopia = PlanTreningowy.objects.create(
+            nazwa=self.nazwa, opis=self.opis, uzytkownik=uzytkownik)
+        CwiczeniePlanu.objects.bulk_create([
+            CwiczeniePlanu(
+                plan=kopia, cwiczenie=c.cwiczenie, serie=c.serie,
+                powtorzenia=c.powtorzenia, ciezar=c.ciezar, notatki=c.notatki)
+            for c in self.cwiczenia.select_related('cwiczenie')
+        ])
+        return kopia
 
     def __str__(self):
         return self.nazwa

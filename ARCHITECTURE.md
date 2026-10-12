@@ -38,7 +38,9 @@ User ─┬─< PlanTreningowy ─< CwiczeniePlanu >─ Cwiczenie >─(dodane_pr
 
 - `Cwiczenie`: nazwa, kategoria, opis, autor, `czy_publiczne`. Metoda `dostepne_dla(user)`
   zwraca ćwiczenia publiczne oraz własne użytkownika.
-- `PlanTreningowy`: nazwa, opis, właściciel (CASCADE).
+- `PlanTreningowy`: nazwa, opis, poziom, właściciel (CASCADE). Plan bez właściciela
+  (`uzytkownik = NULL`) to gotowy plan systemowy: widoczny dla wszystkich, niedostępny do edycji
+  przez użytkowników. Metoda `kopiuj_dla(user)` tworzy edytowalną kopię na koncie użytkownika.
 - `CwiczeniePlanu`: ćwiczenie w planie (serie, powtórzenia, ciężar, notatki).
 - `SesjaTreningowa`: data, nazwa, notatki, właściciel; sortowana malejąco po dacie.
 - `WpisDziennika`: wykonane ćwiczenie w sesji (serie, powtórzenia, ciężar, notatki).
@@ -47,7 +49,8 @@ User ─┬─< PlanTreningowy ─< CwiczeniePlanu >─ Cwiczenie >─(dodane_pr
 ## 4. Przepływ danych
 
 1. Użytkownik rejestruje się i loguje (`accounts`), po czym trafia na `dashboard`.
-2. Wybiera ćwiczenia z bazy (publiczne i własne) lub dodaje własne.
+2. Wybiera ćwiczenia z bazy (publiczne i własne) lub dodaje własne. Początkujący mogą wziąć
+   gotowy plan ze strony "Gotowe plany" (POST tworzy kopię, oryginał pozostaje bez zmian).
 3. Tworzy plan i dodaje do niego ćwiczenia.
 4. "Rozpocznij trening" (przycisk POST na dashboardzie, liście planów i w szczegółach planu, bez strony pośredniej) w jednej transakcji tworzy sesję z dzisiejszą datą
    i kopiuje ćwiczenia planu do wpisów dziennika. Wpisy są niezależne od planu.
@@ -69,7 +72,7 @@ User ─┬─< PlanTreningowy ─< CwiczeniePlanu >─ Cwiczenie >─(dodane_pr
 
 ## 6. Testy
 
-`python manage.py test` uruchamia 36 testów: uprawnienia (cudze obiekty -> 404),
+`python manage.py test` uruchamia 44 testy: uprawnienia (cudze obiekty -> 404),
 widoczność ćwiczeń, start treningu, kalkulator 1RM, statystyki, walidację,
 logowanie i wylogowanie, renderowanie wszystkich stron oraz tworzenie, edycję i usuwanie.
 

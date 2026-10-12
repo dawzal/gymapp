@@ -281,3 +281,65 @@ class NowyPrzeplywTest(BazowyTest):
         odpowiedz = self.client.get(reverse('dashboard'))
         self.assertEqual(odpowiedz.context['ostatnia_sesja'].nazwa, 'Wczorajszy')
         self.assertEqual(odpowiedz.context['sesje_w_tygodniu'], 1)
+
+
+class GotowePlanyTest(BazowyTest):
+    def setUp(self):
+        super().setUp()
+        self.szablon = PlanTreningowy.objects.create(
+            nazwa='Gotowy', opis='Opis', uzytkownik=None, poziom='poczatkujacy')
+        CwiczeniePlanu.objects.create(
+            plan=self.szablon, cwiczenie=self.publiczne, serie=3, powtorzenia=8,
+            ciezar=0, notatki='Wskazowka')
+
+    def test_lista_gotowych_planow(self):
+        odpowiedz = self.client.get(reverse('gotowe_plany'))
+        self.assertEqual(odpowiedz.status_code, 200)
+        self.assertContains(odpowiedz, 'Gotowy')
+        self.assertContains(odpowiedz, 'Wskazowka')
+
+    def test_uzycie_tworzy_kopie_a_szablon_zostaje(self):
+        odpowiedz = self.client.post(reverse('uzyj_gotowego_planu', args=[self.szablon.pk]))
+        kopia = PlanTreningowy.objects.get(uzytkownik=self.ania)
+        self.assertRedirects(odpowiedz, reverse('szczegoly_planu', args=[kopia.pk]))
+        self.assertNotEqual(kopia.pk, self.szablon.pk)
+        wpis = kopia.cwiczenia.get()
+        self.assertEqual((wpis.serie, wpis.powtorzenia, wpis.notatki), (3, 8, 'Wskazowka'))
+
+    def test_edycja_kopii_nie_zmienia_szablonu(self):
+        self.client.post(reverse('uzyj_gotowego_planu', args=[self.szablon.pk]))
+        kopia = PlanTreningowy.objects.get(uzytkownik=self.ania)
+        self.client.post(reverse('edytuj_plan', args=[kopia.pk]), {'nazwa': 'Moj wariant', 'opis': ''})
+        self.client.post(reverse('usun_plan', args=[kopia.pk]))
+        self.szablon.refresh_from_db()
+        self.assertEqual(self.szablon.nazwa, 'Gotowy')
+        self.assertEqual(self.szablon.cwiczenia.count(), 1)
+
+    def test_szablonu_nie_mozna_edytowac_ani_usunac_bezposrednio(self):
+        for nazwa in ('edytuj_plan', 'usun_plan', 'szczegoly_planu'):
+            with self.subTest(widok=nazwa):
+                self.assertEqual(
+                    self.client.get(reverse(nazwa, args=[self.szablon.pk])).status_code, 404)
+        self.client.post(reverse('usun_plan', args=[self.szablon.pk]))
+        self.assertTrue(PlanTreningowy.objects.filter(pk=self.szablon.pk).exists())
+
+    def test_get_na_uzyciu_nie_tworzy_kopii(self):
+        self.client.get(reverse('uzyj_gotowego_planu', args=[self.szablon.pk]))
+        self.assertEqual(PlanTreningowy.objects.filter(uzytkownik=self.ania).count(), 0)
+
+    def test_szablony_nie_sa_na_liscie_moich_planow(self):
+        odpowiedz = self.client.get(reverse('lista_planow'))
+        self.assertEqual(list(odpowiedz.context['moje_plany']), [])
+
+    def test_start_treningu_kopiuje_notatki(self):
+        self.client.post(reverse('uzyj_gotowego_planu', args=[self.szablon.pk]))
+        kopia = PlanTreningowy.objects.get(uzytkownik=self.ania)
+        self.client.post(reverse('rozpocznij_trening', args=[kopia.pk]))
+        wpis = WpisDziennika.objects.get(sesja__uzytkownik=self.ania)
+        self.assertEqual(wpis.notatki, 'Wskazowka')
+
+    def test_notatka_jest_widoczna_jako_dymek_w_planie(self):
+        self.client.post(reverse('uzyj_gotowego_planu', args=[self.szablon.pk]))
+        kopia = PlanTreningowy.objects.get(uzytkownik=self.ania)
+        odpowiedz = self.client.get(reverse('szczegoly_planu', args=[kopia.pk]))
+        self.assertContains(odpowiedz, 'data-bs-toggle="tooltip" title="Wskazowka"')
