@@ -58,31 +58,13 @@
                         </tr>
                     </thead>
                     <tbody>
+                        {% for wiersz in tabela %}
                         <tr>
-                            <td>95%</td>
-                            <td>{{ wynik|floatformat:1 }}</td>
-                            <td>Siła maksymalna (1-2 powt.)</td>
+                            <td>{{ wiersz.procent }}%</td>
+                            <td>{{ wiersz.ciezar }}</td>
+                            <td>{{ wiersz.cel }}</td>
                         </tr>
-                        <tr>
-                            <td>85%</td>
-                            <td>{% widthratio wynik 100 85 %} kg</td>
-                            <td>Siła (3-5 powt.)</td>
-                        </tr>
-                        <tr>
-                            <td>75%</td>
-                            <td>{% widthratio wynik 100 75 %} kg</td>
-                            <td>Hipertrofia (8-12 powt.)</td>
-                        </tr>
-                        <tr>
-                            <td>65%</td>
-                            <td>{% widthratio wynik 100 65 %} kg</td>
-                            <td>Wytrzymałość (15+ powt.)</td>
-                        </tr>
-                        <tr>
-                            <td>50%</td>
-                            <td>{% widthratio wynik 100 50 %} kg</td>
-                            <td>Rozgrzewka</td>
-                        </tr>
+                        {% endfor %}
                     </tbody>
                 </table>
             </div>

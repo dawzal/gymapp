@@ -1,3 +1,32 @@
+from django.contrib.auth.models import User
 from django.test import TestCase
+from django.urls import reverse
 
-# Create your tests here.
+
+class KontaTest(TestCase):
+    def test_rejestracja_tworzy_konto_i_loguje(self):
+        odpowiedz = self.client.post(reverse('rejestracja'), {
+            'username': 'nowy',
+            'password1': 'Silne-haslo-123',
+            'password2': 'Silne-haslo-123',
+        })
+        self.assertRedirects(odpowiedz, reverse('dashboard'))
+        self.assertTrue(User.objects.filter(username='nowy').exists())
+
+    def test_logowanie_poprawnym_haslem(self):
+        User.objects.create_user('ania', password='haslo12345')
+        odpowiedz = self.client.post(reverse('logowanie'), {'username': 'ania', 'password': 'haslo12345'})
+        self.assertRedirects(odpowiedz, reverse('dashboard'))
+
+    def test_logowanie_blednym_haslem_nie_loguje(self):
+        User.objects.create_user('ania', password='haslo12345')
+        self.client.post(reverse('logowanie'), {'username': 'ania', 'password': 'zle'})
+        self.assertNotIn('_auth_user_id', self.client.session)
+
+    def test_wylogowanie_wymaga_post(self):
+        User.objects.create_user('ania', password='haslo12345')
+        self.client.login(username='ania', password='haslo12345')
+        self.assertEqual(self.client.get(reverse('wylogowanie')).status_code, 405)
+        self.assertIn('_auth_user_id', self.client.session)
+        self.client.post(reverse('wylogowanie'))
+        self.assertNotIn('_auth_user_id', self.client.session)

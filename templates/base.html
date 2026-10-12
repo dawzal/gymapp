@@ -42,7 +42,10 @@
                         <span class="nav-link text-light">{{ request.user.username }}</span>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{% url 'wylogowanie' %}">Wyloguj</a>
+                        <form method="post" action="{% url 'wylogowanie' %}" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="nav-link btn btn-link">Wyloguj</button>
+                        </form>
                     </li>
                 </ul>
                 {% else %}
@@ -62,7 +65,7 @@
     <div class="container mt-4">
         {% if messages %}
         {% for message in messages %}
-        <div class="alert alert-success alert-dismissible fade show">
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
             {{ message }}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>

@@ -2,6 +2,15 @@ from django import forms
 from .models import Cwiczenie, PlanTreningowy, CwiczeniePlanu, SesjaTreningowa, WpisDziennika
 
 
+def ogranicz_cwiczenia(formularz, uzytkownik):
+    if uzytkownik is None:
+        return
+    dostepne = Cwiczenie.dostepne_dla(uzytkownik)
+    if formularz.instance.pk and formularz.instance.cwiczenie_id:
+        dostepne = dostepne | Cwiczenie.objects.filter(pk=formularz.instance.cwiczenie_id)
+    formularz.fields['cwiczenie'].queryset = dostepne.distinct()
+
+
 class CwiczenieForm(forms.ModelForm):
     class Meta:
         model = Cwiczenie
@@ -71,6 +80,10 @@ class CwiczeniePlanuForm(forms.ModelForm):
             'notatki': 'Notatki (opcjonalnie)',
         }
 
+    def __init__(self, *args, uzytkownik=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        ogranicz_cwiczenia(self, uzytkownik)
+
 
 class SesjaForm(forms.ModelForm):
     class Meta:
@@ -116,3 +129,7 @@ class WpisForm(forms.ModelForm):
             'ciezar': 'Ciężar (kg)',
             'notatki': 'Notatki',
         }
+
+    def __init__(self, *args, uzytkownik=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        ogranicz_cwiczenia(self, uzytkownik)

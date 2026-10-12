@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
 from django.contrib import messages
+from django.views.decorators.http import require_POST
 
 def rejestracja(request):
     if request.method == 'POST':
@@ -26,6 +27,7 @@ def logowanie(request):
         formularz = AuthenticationForm()
     return render(request, 'accounts/logowanie.html', {'formularz': formularz})
 
+@require_POST
 def wylogowanie(request):
     logout(request)
     return redirect('logowanie')

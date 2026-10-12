@@ -1,4 +1,6 @@
+from django.core.validators import MinValueValidator
 from django.db import models
+from django.db.models import Q
 from django.contrib.auth.models import User
 
 
@@ -19,6 +21,10 @@ class Cwiczenie(models.Model):
     opis = models.TextField(blank=True)
     dodane_przez = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     czy_publiczne = models.BooleanField(default=True)
+
+    @classmethod
+    def dostepne_dla(cls, uzytkownik):
+        return cls.objects.filter(Q(czy_publiczne=True) | Q(dodane_przez=uzytkownik))
 
     def __str__(self):
         return self.nazwa
@@ -45,9 +51,9 @@ class PlanTreningowy(models.Model):
 class CwiczeniePlanu(models.Model):
     plan = models.ForeignKey(PlanTreningowy, on_delete=models.CASCADE, related_name='cwiczenia')
     cwiczenie = models.ForeignKey(Cwiczenie, on_delete=models.CASCADE)
-    serie = models.PositiveIntegerField(default=3)
-    powtorzenia = models.PositiveIntegerField(default=10)
-    ciezar = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    serie = models.PositiveIntegerField(default=3, validators=[MinValueValidator(1)])
+    powtorzenia = models.PositiveIntegerField(default=10, validators=[MinValueValidator(1)])
+    ciezar = models.DecimalField(max_digits=6, decimal_places=2, default=0, validators=[MinValueValidator(0)])
     notatki = models.TextField(blank=True)
 
     def __str__(self):
@@ -76,9 +82,9 @@ class SesjaTreningowa(models.Model):
 class WpisDziennika(models.Model):
     sesja = models.ForeignKey(SesjaTreningowa, on_delete=models.CASCADE, related_name='wpisy')
     cwiczenie = models.ForeignKey(Cwiczenie, on_delete=models.CASCADE)
-    serie = models.PositiveIntegerField()
-    powtorzenia = models.PositiveIntegerField()
-    ciezar = models.DecimalField(max_digits=6, decimal_places=2)
+    serie = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    powtorzenia = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    ciezar = models.DecimalField(max_digits=6, decimal_places=2, validators=[MinValueValidator(0)])
     notatki = models.TextField(blank=True)
 
     def __str__(self):

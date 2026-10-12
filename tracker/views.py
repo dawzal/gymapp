@@ -1,3 +1,5 @@
+import math
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -19,10 +21,9 @@ def dashboard(request):
 @login_required
 def lista_cwiczen(request):
     kategoria = request.GET.get('kategoria', '')
+    cwiczenia = Cwiczenie.dostepne_dla(request.user).select_related('dodane_przez')
     if kategoria:
-        cwiczenia = Cwiczenie.objects.filter(czy_publiczne=True, kategoria=kategoria)
-    else:
-        cwiczenia = Cwiczenie.objects.filter(czy_publiczne=True)
+        cwiczenia = cwiczenia.filter(kategoria=kategoria)
     return render(request, 'tracker/lista_cwiczen.html', {
         'cwiczenia': cwiczenia,
         'kategoria': kategoria,
@@ -85,7 +86,7 @@ def dodaj_plan(request):
 @login_required
 def szczegoly_planu(request, pk):
     plan = get_object_or_404(PlanTreningowy, pk=pk, uzytkownik=request.user)
-    cwiczenia = plan.cwiczenia.all()
+    cwiczenia = plan.cwiczenia.select_related('cwiczenie')
     return render(request, 'tracker/szczegoly_planu.html', {
         'plan': plan,
         'cwiczenia': cwiczenia,
@@ -96,7 +97,7 @@ def szczegoly_planu(request, pk):
 def dodaj_cwiczenie_do_planu(request, plan_pk):
     plan = get_object_or_404(PlanTreningowy, pk=plan_pk, uzytkownik=request.user)
     if request.method == 'POST':
-        formularz = CwiczeniePlanuForm(request.POST)
+        formularz = CwiczeniePlanuForm(request.POST, uzytkownik=request.user)
         if formularz.is_valid():
             cwiczenie_planu = formularz.save(commit=False)
             cwiczenie_planu.plan = plan
@@ -104,7 +105,7 @@ def dodaj_cwiczenie_do_planu(request, plan_pk):
             messages.success(request, 'Ćwiczenie dodane do planu!')
             return redirect('szczegoly_planu', pk=plan.pk)
     else:
-        formularz = CwiczeniePlanuForm()
+        formularz = CwiczeniePlanuForm(uzytkownik=request.user)
     return render(request, 'tracker/dodaj_cwiczenie_do_planu.html', {
         'formularz': formularz,
         'plan': plan,
@@ -115,13 +116,13 @@ def dodaj_cwiczenie_do_planu(request, plan_pk):
 def edytuj_cwiczenie_planu(request, pk):
     cwiczenie_planu = get_object_or_404(CwiczeniePlanu, pk=pk, plan__uzytkownik=request.user)
     if request.method == 'POST':
-        formularz = CwiczeniePlanuForm(request.POST, instance=cwiczenie_planu)
+        formularz = CwiczeniePlanuForm(request.POST, instance=cwiczenie_planu, uzytkownik=request.user)
         if formularz.is_valid():
             formularz.save()
             messages.success(request, 'Ćwiczenie zostało zaktualizowane!')
             return redirect('szczegoly_planu', pk=cwiczenie_planu.plan.pk)
     else:
-        formularz = CwiczeniePlanuForm(instance=cwiczenie_planu)
+        formularz = CwiczeniePlanuForm(instance=cwiczenie_planu, uzytkownik=request.user)
     return render(request, 'tracker/edytuj_cwiczenie_planu.html', {
         'formularz': formularz,
         'cwiczenie_planu': cwiczenie_planu,
@@ -187,9 +188,9 @@ def dodaj_sesje(request):
 @login_required
 def szczegoly_sesji(request, pk):
     sesja = get_object_or_404(SesjaTreningowa, pk=pk, uzytkownik=request.user)
-    wpisy = sesja.wpisy.all()
+    wpisy = sesja.wpisy.select_related('cwiczenie')
     if request.method == 'POST':
-        formularz = WpisForm(request.POST)
+        formularz = WpisForm(request.POST, uzytkownik=request.user)
         if formularz.is_valid():
             wpis = formularz.save(commit=False)
             wpis.sesja = sesja
@@ -197,7 +198,7 @@ def szczegoly_sesji(request, pk):
             messages.success(request, 'Ćwiczenie zapisane!')
             return redirect('szczegoly_sesji', pk=sesja.pk)
     else:
-        formularz = WpisForm()
+        formularz = WpisForm(uzytkownik=request.user)
     return render(request, 'tracker/szczegoly_sesji.html', {
         'sesja': sesja,
         'wpisy': wpisy,
@@ -233,13 +234,13 @@ def usun_sesje(request, pk):
 def edytuj_wpis(request, pk):
     wpis = get_object_or_404(WpisDziennika, pk=pk, sesja__uzytkownik=request.user)
     if request.method == 'POST':
-        formularz = WpisForm(request.POST, instance=wpis)
+        formularz = WpisForm(request.POST, instance=wpis, uzytkownik=request.user)
         if formularz.is_valid():
             formularz.save()
             messages.success(request, 'Wpis został zaktualizowany!')
             return redirect('szczegoly_sesji', pk=wpis.sesja.pk)
     else:
-        formularz = WpisForm(instance=wpis)
+        formularz = WpisForm(instance=wpis, uzytkownik=request.user)
     return render(request, 'tracker/edytuj_wpis.html', {
         'formularz': formularz,
         'wpis': wpis,
@@ -257,42 +258,65 @@ def usun_wpis(request, pk):
     return render(request, 'tracker/usun_wpis.html', {'wpis': wpis})
 
 
+PROCENTY_1RM = [
+    (95, 'Siła maksymalna (1-2 powt.)'),
+    (85, 'Siła (3-5 powt.)'),
+    (75, 'Hipertrofia (8-12 powt.)'),
+    (65, 'Wytrzymałość (15+ powt.)'),
+    (50, 'Rozgrzewka'),
+]
+
+
+def oblicz_1rm(ciezar, powtorzenia):
+    return round(ciezar * (36 / (37 - powtorzenia)), 2)
+
+
 @login_required
 def kalkulator_1rm(request):
     wynik = None
+    tabela = []
     if request.method == 'POST':
         try:
             ciezar = float(request.POST.get('ciezar', 0))
             powtorzenia = int(request.POST.get('powtorzenia', 0))
-            if ciezar > 0 and 1 <= powtorzenia <= 36:
-                wynik = round(ciezar * (36 / (37 - powtorzenia)), 2)
-            else:
-                messages.error(request, 'Podaj prawidłowe wartości!')
         except ValueError:
             messages.error(request, 'Podaj liczby!')
-    return render(request, 'tracker/kalkulator_1rm.html', {'wynik': wynik})
+        else:
+            if math.isfinite(ciezar) and 0 < ciezar <= 1000 and 1 <= powtorzenia <= 36:
+                wynik = oblicz_1rm(ciezar, powtorzenia)
+                tabela = [
+                    {'procent': procent, 'ciezar': round(wynik * procent / 100, 1), 'cel': cel}
+                    for procent, cel in PROCENTY_1RM
+                ]
+            else:
+                messages.error(request, 'Podaj prawidłowe wartości!')
+    return render(request, 'tracker/kalkulator_1rm.html', {'wynik': wynik, 'tabela': tabela})
 
 
 @login_required
 def statystyki(request):
     sesje = SesjaTreningowa.objects.filter(uzytkownik=request.user)
-    liczba_sesji = sesje.count()
     wpisy = WpisDziennika.objects.filter(sesja__uzytkownik=request.user)
-    liczba_wpisow = wpisy.count()
     ulubione_cwiczenia = wpisy.values(
         'cwiczenie__nazwa'
     ).annotate(
         liczba=Count('id')
-    ).order_by('-liczba')[:5]
-    dane_wykres = sesje.values('data').annotate(
-        liczba_cwiczen=Count('wpisy')
-    ).order_by('data')[:10]
+    ).order_by('-liczba', 'cwiczenie__nazwa')[:5]
+    ostatnie_dni = list(
+        sesje.values('data').annotate(
+            liczba_cwiczen=Count('wpisy')
+        ).order_by('-data')[:10]
+    )
+    ostatnie_dni.reverse()
     return render(request, 'tracker/statystyki.html', {
-        'liczba_sesji': liczba_sesji,
-        'liczba_wpisow': liczba_wpisow,
+        'liczba_sesji': sesje.count(),
+        'liczba_wpisow': wpisy.count(),
+        'liczba_roznych_cwiczen': wpisy.values('cwiczenie').distinct().count(),
         'ulubione_cwiczenia': ulubione_cwiczenia,
-        'dane_wykres': dane_wykres,
+        'etykiety_wykresu': [d['data'].isoformat() for d in ostatnie_dni],
+        'wartosci_wykresu': [d['liczba_cwiczen'] for d in ostatnie_dni],
     })
+
 
 @login_required
 def rozpocznij_trening(request, plan_pk):
