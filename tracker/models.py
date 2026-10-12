@@ -100,6 +100,8 @@ class SesjaTreningowa(models.Model):
     data = models.DateField()
     nazwa = models.CharField(max_length=100, blank=True)
     notatki = models.TextField(blank=True)
+    rozpoczeto = models.DateTimeField(null=True, blank=True)
+    zakonczono = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.uzytkownik.username} - {self.data}"

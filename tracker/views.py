@@ -12,6 +12,10 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from .analiza import (
+    oblicz_1rm, ostatnie_serie, podsumowanie_sesji, progres_cwiczenia, rekordy_uzytkownika,
+    rekordy_wpisow,
+)
 from .forms import (
     CwiczenieForm, CwiczeniePlanuForm, NowyWpisForm, PlanTreningowyForm, SeriaFormSet,
     SesjaForm, WpisForm,
@@ -258,13 +262,18 @@ def rozpocznij_trening(request, plan_pk):
             uzytkownik=request.user,
             data=timezone.localdate(),
             nazwa=f"Trening: {plan.nazwa}",
+            rozpoczeto=timezone.now(),
         )
+        ostatnio = ostatnie_serie(sesja, [c.cwiczenie_id for c in cwiczenia])
         serie = []
         for c in cwiczenia:
             wpis = WpisDziennika.objects.create(
                 sesja=sesja, cwiczenie=c.cwiczenie, notatki=c.notatki)
+            ciezar = c.ciezar
+            if not ciezar and c.cwiczenie_id in ostatnio:
+                ciezar = max(s.ciezar for s in ostatnio[c.cwiczenie_id]['serie'])
             serie.extend(
-                SeriaWpisu(wpis=wpis, powtorzenia=c.powtorzenia, ciezar=c.ciezar)
+                SeriaWpisu(wpis=wpis, powtorzenia=c.powtorzenia, ciezar=ciezar)
                 for _ in range(c.serie)
             )
         SeriaWpisu.objects.bulk_create(serie)
@@ -286,6 +295,8 @@ def dodaj_sesje(request):
     if formularz.is_valid():
         sesja = formularz.save(commit=False)
         sesja.uzytkownik = request.user
+        if sesja.data == timezone.localdate():
+            sesja.rozpoczeto = timezone.now()
         sesja.save()
         messages.success(request, 'Sesja treningowa dodana!')
         return redirect('szczegoly_sesji', pk=sesja.pk)
@@ -295,18 +306,27 @@ def dodaj_sesje(request):
 
 
 def strona_sesji(request, sesja, formularz, bledny_zestaw=None):
-    wpisy = sesja.wpisy.select_related('cwiczenie').prefetch_related('serie')
+    wpisy = list(sesja.wpisy.select_related('cwiczenie').prefetch_related('serie'))
+    ostatnio = ostatnie_serie(sesja, [wpis.cwiczenie_id for wpis in wpisy])
+    rekordy = rekordy_wpisow(sesja, wpisy)
     karty = []
     for wpis in wpisy:
         if bledny_zestaw is not None and bledny_zestaw.instance.pk == wpis.pk:
             zestaw = bledny_zestaw
         else:
             zestaw = SeriaFormSet(instance=wpis, prefix=f'serie{wpis.pk}')
-        karty.append({'wpis': wpis, 'zestaw': zestaw})
+        karty.append({
+            'wpis': wpis,
+            'zestaw': zestaw,
+            'ostatnio': ostatnio.get(wpis.cwiczenie_id),
+            'rekord': rekordy.get(wpis.pk),
+        })
     return render(request, 'tracker/szczegoly_sesji.html', {
         'sesja': sesja,
         'karty': karty,
         'formularz': formularz,
+        'podsumowanie': podsumowanie_sesji(sesja),
+        'liczba_rekordow': len(rekordy),
     })
 
 
@@ -335,6 +355,27 @@ def zapisz_serie(request, pk):
         return redirect('szczegoly_sesji', pk=wpis.sesja.pk)
     return strona_sesji(
         request, wpis.sesja, NowyWpisForm(uzytkownik=request.user), bledny_zestaw=zestaw)
+
+
+@login_required
+@require_POST
+def zakoncz_sesje(request, pk):
+    sesja = get_object_or_404(SesjaTreningowa, pk=pk, uzytkownik=request.user)
+    if sesja.zakonczono is None:
+        sesja.zakonczono = timezone.now()
+        sesja.save(update_fields=['zakonczono'])
+        messages.success(request, 'Trening zakończony. Dobra robota!')
+    return redirect('szczegoly_sesji', pk=sesja.pk)
+
+
+@login_required
+@require_POST
+def wznow_sesje(request, pk):
+    sesja = get_object_or_404(SesjaTreningowa, pk=pk, uzytkownik=request.user)
+    sesja.zakonczono = None
+    sesja.save(update_fields=['zakonczono'])
+    messages.success(request, 'Trening wznowiony.')
+    return redirect('szczegoly_sesji', pk=sesja.pk)
 
 
 @login_required
@@ -406,10 +447,6 @@ PROCENTY_1RM = [
 ]
 
 
-def oblicz_1rm(ciezar, powtorzenia):
-    return round(ciezar * (36 / (37 - powtorzenia)), 2)
-
-
 @login_required
 def kalkulator_1rm(request):
     wynik = None
@@ -447,6 +484,24 @@ def statystyki(request):
         ).order_by('-data')[:10]
     )
     ostatnie_dni.reverse()
+
+    cwiczenia_do_progresu = list(
+        Cwiczenie.objects.filter(pk__in=wpisy.values('cwiczenie')).order_by('nazwa')
+    )
+    dostepne_id = {c.pk: c for c in cwiczenia_do_progresu}
+    wybrane = None
+    try:
+        zadane = int(request.GET.get('cwiczenie', ''))
+    except ValueError:
+        zadane = None
+    if zadane in dostepne_id:
+        wybrane = dostepne_id[zadane]
+    elif cwiczenia_do_progresu:
+        najczestsze = wpisy.values('cwiczenie').annotate(
+            liczba=Count('id')).order_by('-liczba', 'cwiczenie').first()
+        wybrane = dostepne_id[najczestsze['cwiczenie']]
+    progres = progres_cwiczenia(request.user, wybrane.pk) if wybrane else []
+
     return render(request, 'tracker/statystyki.html', {
         'liczba_sesji': sesje.count(),
         'liczba_wpisow': wpisy.count(),
@@ -454,4 +509,10 @@ def statystyki(request):
         'ulubione_cwiczenia': ulubione_cwiczenia,
         'etykiety_wykresu': [d['data'].isoformat() for d in ostatnie_dni],
         'wartosci_wykresu': [d['liczba_cwiczen'] for d in ostatnie_dni],
+        'cwiczenia_do_progresu': cwiczenia_do_progresu,
+        'wybrane_cwiczenie': wybrane,
+        'progres_etykiety': [p['data'].isoformat() for p in progres],
+        'progres_ciezar': [p['maks_ciezar'] for p in progres],
+        'progres_1rm': [p['maks_1rm'] for p in progres],
+        'rekordy': rekordy_uzytkownika(request.user),
     })

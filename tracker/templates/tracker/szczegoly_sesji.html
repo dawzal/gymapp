@@ -26,6 +26,37 @@
     </div>
 </div>
 
+<div class="card mb-4">
+    <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div class="d-flex flex-wrap gap-4">
+            <div><div class="fs-4 fw-bold">{{ podsumowanie.cwiczenia }}</div><div class="text-muted small">ćwiczeń</div></div>
+            <div><div class="fs-4 fw-bold">{{ podsumowanie.serie }}</div><div class="text-muted small">serii</div></div>
+            <div><div class="fs-4 fw-bold">{{ podsumowanie.powtorzenia }}</div><div class="text-muted small">powtórzeń</div></div>
+            <div><div class="fs-4 fw-bold">{{ podsumowanie.objetosc|floatformat:"-1" }} kg</div><div class="text-muted small">objętość</div></div>
+            {% if podsumowanie.minuty %}
+            <div><div class="fs-4 fw-bold">{{ podsumowanie.minuty }} min</div><div class="text-muted small">czas treningu</div></div>
+            {% endif %}
+            {% if liczba_rekordow %}
+            <div><div class="fs-4 fw-bold text-warning">{{ liczba_rekordow }}</div><div class="text-muted small">rekordów</div></div>
+            {% endif %}
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            {% if sesja.zakonczono %}
+            <span class="badge bg-success">Zakończony o {{ sesja.zakonczono|date:"H:i" }}</span>
+            <form method="post" action="{% url 'wznow_sesje' sesja.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-secondary btn-sm">Wznów</button>
+            </form>
+            {% else %}
+            <form method="post" action="{% url 'zakoncz_sesje' sesja.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-success">Zakończ trening</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
 <div class="row">
     <div class="col-lg-8">
         {% for karta in karty %}
@@ -37,6 +68,9 @@
                     {% if wpis.notatki %}
                     <span class="badge bg-secondary ms-1" data-bs-toggle="tooltip" title="{{ wpis.notatki }}" tabindex="0">notatka</span>
                     {% endif %}
+                    {% if karta.rekord %}
+                    <span class="badge bg-warning text-dark ms-1" data-bs-toggle="tooltip" title="Nowy rekord! Szacowane 1RM: {{ karta.rekord.obecny|floatformat:1 }} kg (poprzednio {{ karta.rekord.poprzedni|floatformat:1 }} kg)" tabindex="0">Rekord</span>
+                    {% endif %}
                 </strong>
                 <div class="d-flex gap-1">
                     <a href="{% url 'edytuj_wpis' wpis.pk %}" class="btn btn-sm btn-outline-dark">Zmień ćwiczenie</a>
@@ -44,7 +78,13 @@
                 </div>
             </div>
             <div class="card-body">
-                <form method="post" action="{% url 'zapisz_serie' wpis.pk %}">
+                {% if karta.ostatnio %}
+                <p class="text-muted small mb-2">
+                    Ostatnio ({{ karta.ostatnio.data|date:"d.m.Y" }}):
+                    {% for s in karta.ostatnio.serie %}{{ s.powtorzenia }} x {{ s.ciezar|floatformat:"-2" }} kg{% if not forloop.last %}, {% endif %}{% endfor %}
+                </p>
+                {% endif %}
+                <form method="post" action="{% url 'zapisz_serie' wpis.pk %}" data-formularz-serii>
                     {% csrf_token %}
                     {{ zestaw.management_form }}
                     {% for blad in zestaw.non_form_errors %}
@@ -108,6 +148,30 @@
     </div>
 
     <div class="col-lg-4">
+        <div class="card mb-3">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">Przerwa</h5>
+            </div>
+            <div class="card-body">
+                <div id="przerwa-czas" class="display-5 fw-bold text-center mb-3">0:00</div>
+                <div class="d-flex gap-2 mb-2">
+                    <select id="przerwa-sekundy" class="form-select form-select-sm" aria-label="Długość przerwy">
+                        <option value="60">1:00</option>
+                        <option value="90" selected>1:30</option>
+                        <option value="120">2:00</option>
+                        <option value="180">3:00</option>
+                        <option value="300">5:00</option>
+                    </select>
+                    <button type="button" id="przerwa-start" class="btn btn-dark btn-sm">Start</button>
+                    <button type="button" id="przerwa-stop" class="btn btn-outline-secondary btn-sm">Stop</button>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="przerwa-auto">
+                    <label class="form-check-label small" for="przerwa-auto">Uruchamiaj po zapisaniu serii</label>
+                </div>
+            </div>
+        </div>
+
         <div class="card">
             <div class="card-header bg-secondary text-white">
                 <h5 class="mb-0">Dodaj ćwiczenie</h5>
@@ -158,5 +222,91 @@
             ustawStanUsuniecia(wiersz);
         }
     });
+</script>
+
+<script>
+    (function () {
+        const KLUCZ_KONIEC = 'gymapp_przerwa_koniec';
+        const KLUCZ_AUTO = 'gymapp_przerwa_auto';
+        const KLUCZ_CZAS = 'gymapp_przerwa_czas';
+        const wyswietlacz = document.getElementById('przerwa-czas');
+        const wybor = document.getElementById('przerwa-sekundy');
+        const auto = document.getElementById('przerwa-auto');
+        let zegar = null;
+
+        function odczytaj(klucz) {
+            try { return localStorage.getItem(klucz); } catch (e) { return null; }
+        }
+        function zapisz(klucz, wartosc) {
+            try { localStorage.setItem(klucz, wartosc); } catch (e) { }
+        }
+        function usun(klucz) {
+            try { localStorage.removeItem(klucz); } catch (e) { }
+        }
+        function format(sekundy) {
+            return Math.floor(sekundy / 60) + ':' + String(sekundy % 60).padStart(2, '0');
+        }
+        function sygnal() {
+            wyswietlacz.classList.add('text-success');
+            if (navigator.vibrate) { navigator.vibrate([200, 100, 200]); }
+            try {
+                const kontekst = new (window.AudioContext || window.webkitAudioContext)();
+                const oscylator = kontekst.createOscillator();
+                oscylator.frequency.value = 880;
+                oscylator.connect(kontekst.destination);
+                oscylator.start();
+                oscylator.stop(kontekst.currentTime + 0.4);
+            } catch (e) { }
+        }
+        function zatrzymajZegar() {
+            if (zegar !== null) { clearInterval(zegar); zegar = null; }
+        }
+        function odswiez() {
+            const koniec = parseInt(odczytaj(KLUCZ_KONIEC) || '0', 10);
+            if (!koniec) {
+                wyswietlacz.textContent = '0:00';
+                zatrzymajZegar();
+                return;
+            }
+            const pozostalo = Math.ceil((koniec - Date.now()) / 1000);
+            if (pozostalo <= 0) {
+                usun(KLUCZ_KONIEC);
+                wyswietlacz.textContent = '0:00';
+                zatrzymajZegar();
+                if (pozostalo > -10) { sygnal(); }
+                return;
+            }
+            wyswietlacz.classList.remove('text-success');
+            wyswietlacz.textContent = format(pozostalo);
+        }
+        function uruchom() {
+            const sekundy = parseInt(wybor.value, 10);
+            zapisz(KLUCZ_CZAS, String(sekundy));
+            zapisz(KLUCZ_KONIEC, String(Date.now() + sekundy * 1000));
+            zatrzymajZegar();
+            odswiez();
+            zegar = setInterval(odswiez, 500);
+        }
+
+        const zapamietanyCzas = odczytaj(KLUCZ_CZAS);
+        if (zapamietanyCzas) { wybor.value = zapamietanyCzas; }
+        auto.checked = odczytaj(KLUCZ_AUTO) === '1';
+        auto.addEventListener('change', function () { zapisz(KLUCZ_AUTO, auto.checked ? '1' : '0'); });
+        wybor.addEventListener('change', function () { zapisz(KLUCZ_CZAS, wybor.value); });
+        document.getElementById('przerwa-start').addEventListener('click', uruchom);
+        document.getElementById('przerwa-stop').addEventListener('click', function () {
+            usun(KLUCZ_KONIEC);
+            odswiez();
+        });
+        document.querySelectorAll('[data-formularz-serii]').forEach(function (formularz) {
+            formularz.addEventListener('submit', function () {
+                if (auto.checked) {
+                    zapisz(KLUCZ_KONIEC, String(Date.now() + parseInt(wybor.value, 10) * 1000));
+                }
+            });
+        });
+        odswiez();
+        if (odczytaj(KLUCZ_KONIEC)) { zegar = setInterval(odswiez, 500); }
+    })();
 </script>
 {% endblock %}

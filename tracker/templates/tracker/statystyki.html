@@ -79,35 +79,122 @@
     </div>
 </div>
 
+{% if wybrane_cwiczenie %}
+<div class="card mb-4">
+    <div class="card-header bg-dark text-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <h5 class="mb-0">Progres w ćwiczeniu</h5>
+        <form method="get" class="d-flex gap-2">
+            <select name="cwiczenie" class="form-select form-select-sm" aria-label="Ćwiczenie" onchange="this.form.submit()">
+                {% for c in cwiczenia_do_progresu %}
+                <option value="{{ c.pk }}"{% if c.pk == wybrane_cwiczenie.pk %} selected{% endif %}>{{ c.nazwa }}</option>
+                {% endfor %}
+            </select>
+            <noscript><button type="submit" class="btn btn-light btn-sm">Pokaż</button></noscript>
+        </form>
+    </div>
+    <div class="card-body">
+        <canvas id="wykresProgresu"></canvas>
+        <p class="text-muted small mt-2 mb-0">
+            Dla każdego dnia treningowego: największy użyty ciężar oraz szacowane 1RM (wzór Brzyckiego)
+            z najlepszej serii. Pokazuje ostatnie 30 dni treningowych.
+        </p>
+    </div>
+</div>
+{% endif %}
+
+<div class="card mb-4">
+    <div class="card-header bg-dark text-white">
+        <h5 class="mb-0">Rekordy osobiste</h5>
+    </div>
+    <div class="card-body">
+        {% if rekordy %}
+        <div class="table-responsive">
+            <table class="table table-striped mb-0">
+                <thead>
+                    <tr>
+                        <th>Ćwiczenie</th>
+                        <th>Najlepsza seria</th>
+                        <th>Szacowane 1RM</th>
+                        <th>Data</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rekordy %}
+                    <tr>
+                        <td>{{ r.nazwa }}</td>
+                        <td>{{ r.powtorzenia }} x {{ r.ciezar|floatformat:"-2" }} kg</td>
+                        <td>{{ r.rm|floatformat:1 }} kg</td>
+                        <td>{{ r.data|date:"d.m.Y" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="text-muted small mt-2 mb-0">
+            Rekord to seria z najwyższym szacowanym 1RM. Seria bez ciężaru (np. ćwiczenia z masą ciała) nie jest liczona.
+        </p>
+        {% else %}
+        <p class="text-muted mb-0">Brak danych. Zapisz serie z ciężarem, aby zobaczyć rekordy.</p>
+        {% endif %}
+    </div>
+</div>
+
+{% if etykiety_wykresu or wybrane_cwiczenie %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endif %}
+
 {% if etykiety_wykresu %}
 {{ etykiety_wykresu|json_script:"etykiety-wykresu" }}
 {{ wartosci_wykresu|json_script:"wartosci-wykresu" }}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-    const ctx = document.getElementById('wykresAktywnosci');
-    const etykiety = JSON.parse(document.getElementById('etykiety-wykresu').textContent);
-    const wartosci = JSON.parse(document.getElementById('wartosci-wykresu').textContent);
-    new Chart(ctx, {
+    new Chart(document.getElementById('wykresAktywnosci'), {
         type: 'bar',
         data: {
-            labels: etykiety,
+            labels: JSON.parse(document.getElementById('etykiety-wykresu').textContent),
             datasets: [{
                 label: 'Liczba ćwiczeń',
-                data: wartosci,
+                data: JSON.parse(document.getElementById('wartosci-wykresu').textContent),
                 backgroundColor: '#212529',
             }]
         },
         options: {
             responsive: true,
-            plugins: {
-                legend: { display: false }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: { stepSize: 1 }
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+        }
+    });
+</script>
+{% endif %}
+
+{% if wybrane_cwiczenie %}
+{{ progres_etykiety|json_script:"progres-etykiety" }}
+{{ progres_ciezar|json_script:"progres-ciezar" }}
+{{ progres_1rm|json_script:"progres-1rm" }}
+<script>
+    new Chart(document.getElementById('wykresProgresu'), {
+        type: 'line',
+        data: {
+            labels: JSON.parse(document.getElementById('progres-etykiety').textContent),
+            datasets: [
+                {
+                    label: 'Największy ciężar (kg)',
+                    data: JSON.parse(document.getElementById('progres-ciezar').textContent),
+                    borderColor: '#212529',
+                    backgroundColor: '#212529',
+                    tension: 0.2,
+                },
+                {
+                    label: 'Szacowane 1RM (kg)',
+                    data: JSON.parse(document.getElementById('progres-1rm').textContent),
+                    borderColor: '#0d6efd',
+                    backgroundColor: '#0d6efd',
+                    tension: 0.2,
                 }
-            }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: { y: { beginAtZero: true } }
         }
     });
 </script>

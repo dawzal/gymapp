@@ -1,6 +1,7 @@
 from django import forms
 from django.forms import inlineformset_factory
 
+from .analiza import ostatnie_serie
 from .models import (
     Cwiczenie, CwiczeniePlanu, PlanTreningowy, SeriaWpisu, SesjaTreningowa, WpisDziennika,
 )
@@ -166,6 +167,11 @@ class NowyWpisForm(forms.Form):
         label='Ciężar (kg)', min_value=0, max_digits=6, decimal_places=2, initial=0,
         widget=forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'step': '0.5'}),
     )
+    jak_ostatnio = forms.BooleanField(
+        label='Jeśli ćwiczenie było już wykonywane, ustaw serie jak ostatnio',
+        required=False, initial=True,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+    )
     notatki = forms.CharField(
         label='Notatki', required=False,
         widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
@@ -179,9 +185,14 @@ class NowyWpisForm(forms.Form):
         dane = self.cleaned_data
         wpis = WpisDziennika.objects.create(
             sesja=sesja, cwiczenie=dane['cwiczenie'], notatki=dane['notatki'])
+        wzorce = [(dane['powtorzenia'], dane['ciezar'])] * dane['liczba_serii']
+        if dane['jak_ostatnio']:
+            ostatnio = ostatnie_serie(sesja, [dane['cwiczenie'].pk]).get(dane['cwiczenie'].pk)
+            if ostatnio:
+                wzorce = [(s.powtorzenia, s.ciezar) for s in ostatnio['serie']]
         SeriaWpisu.objects.bulk_create([
-            SeriaWpisu(wpis=wpis, powtorzenia=dane['powtorzenia'], ciezar=dane['ciezar'])
-            for _ in range(dane['liczba_serii'])
+            SeriaWpisu(wpis=wpis, powtorzenia=powtorzenia, ciezar=ciezar)
+            for powtorzenia, ciezar in wzorce
         ])
         return wpis
 

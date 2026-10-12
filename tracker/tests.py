@@ -6,6 +6,12 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
+from django.utils import timezone
+
+from .analiza import (
+    ostatnie_serie, podsumowanie_sesji, progres_cwiczenia, rekordy_uzytkownika,
+    rekordy_wpisow, szacowane_1rm,
+)
 from .forms import CwiczeniePlanuForm, NowyWpisForm, WpisForm
 from .models import (
     Cwiczenie, CwiczeniePlanu, PlanTreningowy, SeriaWpisu, SesjaTreningowa, WpisDziennika,
@@ -493,3 +499,195 @@ class PrzyciskUsuwaniaSeriiTest(BazowyTest):
             '<button type="button" class="btn btn-sm btn-outline-danger" data-przelacz-usuniecie>',
             count=3,
         )
+
+
+class HistoriaTestBase(BazowyTest):
+    def sesja_z(self, data, serie, cwiczenie=None, uzytkownik=None):
+        sesja = SesjaTreningowa.objects.create(uzytkownik=uzytkownik or self.ania, data=data)
+        utworz_wpis(sesja, cwiczenie or self.publiczne, serie=serie)
+        return sesja
+
+
+class AnalizaTest(HistoriaTestBase):
+    def test_szacowane_1rm(self):
+        self.assertEqual(szacowane_1rm(100, 1), 100.0)
+        self.assertIsNone(szacowane_1rm(100, 37))
+        self.assertIsNone(szacowane_1rm(100, 0))
+
+    def test_ostatnie_serie_bierze_najnowsza_wczesniejsza_sesje(self):
+        self.sesja_z(date(2025, 1, 1), ((10, 40),))
+        self.sesja_z(date(2025, 1, 8), ((8, 50), (7, 50)))
+        biezaca = self.sesja_z(date(2025, 1, 15), ((5, 60),))
+        self.sesja_z(date(2025, 1, 22), ((3, 70),))
+        wynik = ostatnie_serie(biezaca, [self.publiczne.pk])[self.publiczne.pk]
+        self.assertEqual(wynik['data'], date(2025, 1, 8))
+        self.assertEqual([(s.powtorzenia, s.ciezar) for s in wynik['serie']],
+                         [(8, Decimal('50')), (7, Decimal('50'))])
+
+    def test_ostatnie_serie_pomija_cudze_dane(self):
+        self.sesja_z(date(2025, 1, 1), ((8, 50),), uzytkownik=self.bartek)
+        biezaca = self.sesja_z(date(2025, 1, 8), ((5, 60),))
+        self.assertEqual(ostatnie_serie(biezaca, [self.publiczne.pk]), {})
+
+    def test_rekord_gdy_wynik_jest_lepszy_niz_dotychczasowy(self):
+        self.sesja_z(date(2025, 1, 1), ((8, 50),))
+        biezaca = self.sesja_z(date(2025, 1, 8), ((8, 55),))
+        wpisy = list(biezaca.wpisy.prefetch_related('serie'))
+        rekordy = rekordy_wpisow(biezaca, wpisy)
+        self.assertIn(wpisy[0].pk, rekordy)
+        self.assertGreater(rekordy[wpisy[0].pk]['obecny'], rekordy[wpisy[0].pk]['poprzedni'])
+
+    def test_brak_rekordu_przy_pierwszym_podejsciu_i_przy_remisie(self):
+        pierwsza = self.sesja_z(date(2025, 1, 1), ((8, 50),))
+        wpisy = list(pierwsza.wpisy.prefetch_related('serie'))
+        self.assertEqual(rekordy_wpisow(pierwsza, wpisy), {})
+        druga = self.sesja_z(date(2025, 1, 8), ((8, 50),))
+        wpisy = list(druga.wpisy.prefetch_related('serie'))
+        self.assertEqual(rekordy_wpisow(druga, wpisy), {})
+
+    def test_progres_grupuje_po_dniach(self):
+        self.sesja_z(date(2025, 1, 1), ((8, 50), (6, 55)))
+        self.sesja_z(date(2025, 1, 8), ((5, 60),))
+        punkty = progres_cwiczenia(self.ania, self.publiczne.pk)
+        self.assertEqual([p['data'] for p in punkty], [date(2025, 1, 1), date(2025, 1, 8)])
+        self.assertEqual(punkty[0]['maks_ciezar'], 55.0)
+
+    def test_rekordy_uzytkownika_zwracaja_najlepsza_serie(self):
+        self.sesja_z(date(2025, 1, 1), ((8, 50), (3, 70)))
+        self.sesja_z(date(2025, 1, 8), ((10, 40),))
+        rekordy = rekordy_uzytkownika(self.ania)
+        self.assertEqual(len(rekordy), 1)
+        self.assertEqual((rekordy[0]['powtorzenia'], rekordy[0]['ciezar']), (3, Decimal('70')))
+
+    def test_podsumowanie_sesji(self):
+        sesja = self.sesja_z(date(2025, 1, 1), ((10, 20), (5, 40)))
+        sesja.rozpoczeto = timezone.now()
+        sesja.zakonczono = sesja.rozpoczeto + timedelta(minutes=47)
+        podsumowanie = podsumowanie_sesji(sesja)
+        self.assertEqual(podsumowanie['cwiczenia'], 1)
+        self.assertEqual(podsumowanie['serie'], 2)
+        self.assertEqual(podsumowanie['powtorzenia'], 15)
+        self.assertEqual(podsumowanie['objetosc'], Decimal('400'))
+        self.assertEqual(podsumowanie['minuty'], 47)
+
+
+class OstatnioWSesjiTest(HistoriaTestBase):
+    def test_strona_sesji_pokazuje_ostatnie_serie_i_rekord(self):
+        self.sesja_z(date(2025, 1, 1), ((8, 50), (7, 50)))
+        biezaca = self.sesja_z(date(2025, 1, 8), ((8, 60),))
+        odpowiedz = self.client.get(reverse('szczegoly_sesji', args=[biezaca.pk]))
+        self.assertContains(odpowiedz, 'Ostatnio (01.01.2025)')
+        self.assertContains(odpowiedz, '8 x 50 kg, 7 x 50 kg')
+        self.assertContains(odpowiedz, 'Nowy rekord')
+        self.assertEqual(odpowiedz.context['liczba_rekordow'], 1)
+
+    def test_nowe_cwiczenie_kopiuje_ostatnie_serie(self):
+        self.sesja_z(date(2025, 1, 1), ((8, 50), (7, 50), (5, 55)))
+        biezaca = SesjaTreningowa.objects.create(uzytkownik=self.ania, data=date(2025, 1, 8))
+        self.client.post(reverse('szczegoly_sesji', args=[biezaca.pk]), {
+            'cwiczenie': self.publiczne.pk, 'liczba_serii': 1, 'powtorzenia': 1,
+            'ciezar': '0', 'jak_ostatnio': 'on', 'notatki': '',
+        })
+        serie = [(s.powtorzenia, s.ciezar) for s in biezaca.wpisy.get().serie.all()]
+        self.assertEqual(serie, [(8, Decimal('50')), (7, Decimal('50')), (5, Decimal('55'))])
+
+    def test_wylaczenie_opcji_uzywa_podanych_wartosci(self):
+        self.sesja_z(date(2025, 1, 1), ((8, 50),))
+        biezaca = SesjaTreningowa.objects.create(uzytkownik=self.ania, data=date(2025, 1, 8))
+        self.client.post(reverse('szczegoly_sesji', args=[biezaca.pk]), {
+            'cwiczenie': self.publiczne.pk, 'liczba_serii': 2, 'powtorzenia': 12,
+            'ciezar': '30', 'notatki': '',
+        })
+        serie = [(s.powtorzenia, s.ciezar) for s in biezaca.wpisy.get().serie.all()]
+        self.assertEqual(serie, [(12, Decimal('30'))] * 2)
+
+    def test_brak_historii_uzywa_podanych_wartosci_mimo_opcji(self):
+        biezaca = SesjaTreningowa.objects.create(uzytkownik=self.ania, data=date(2025, 1, 8))
+        self.client.post(reverse('szczegoly_sesji', args=[biezaca.pk]), {
+            'cwiczenie': self.publiczne.pk, 'liczba_serii': 3, 'powtorzenia': 10,
+            'ciezar': '20', 'jak_ostatnio': 'on', 'notatki': '',
+        })
+        self.assertEqual(biezaca.wpisy.get().serie.count(), 3)
+
+    def test_start_treningu_przejmuje_ostatni_ciezar_gdy_plan_ma_zero(self):
+        self.sesja_z(date(2025, 1, 1), ((8, 50), (6, 55)))
+        plan = PlanTreningowy.objects.create(nazwa='P', uzytkownik=self.ania)
+        CwiczeniePlanu.objects.create(
+            plan=plan, cwiczenie=self.publiczne, serie=2, powtorzenia=8, ciezar=0)
+        self.client.post(reverse('rozpocznij_trening', args=[plan.pk]))
+        sesja = SesjaTreningowa.objects.filter(uzytkownik=self.ania).order_by('-pk').first()
+        self.assertEqual({s.ciezar for s in sesja.wpisy.get().serie.all()}, {Decimal('55')})
+        self.assertIsNotNone(sesja.rozpoczeto)
+
+    def test_start_treningu_zachowuje_ciezar_z_planu(self):
+        self.sesja_z(date(2025, 1, 1), ((8, 50),))
+        plan = PlanTreningowy.objects.create(nazwa='P', uzytkownik=self.ania)
+        CwiczeniePlanu.objects.create(
+            plan=plan, cwiczenie=self.publiczne, serie=1, powtorzenia=8, ciezar=70)
+        self.client.post(reverse('rozpocznij_trening', args=[plan.pk]))
+        sesja = SesjaTreningowa.objects.filter(uzytkownik=self.ania).order_by('-pk').first()
+        self.assertEqual(sesja.wpisy.get().serie.get().ciezar, Decimal('70'))
+
+
+class ZakonczenieTreninguTest(BazowyTest):
+    def setUp(self):
+        super().setUp()
+        self.sesja = SesjaTreningowa.objects.create(
+            uzytkownik=self.ania, data=date.today(), rozpoczeto=timezone.now())
+
+    def test_zakonczenie_i_wznowienie(self):
+        self.client.post(reverse('zakoncz_sesje', args=[self.sesja.pk]))
+        self.sesja.refresh_from_db()
+        self.assertIsNotNone(self.sesja.zakonczono)
+        odpowiedz = self.client.get(reverse('szczegoly_sesji', args=[self.sesja.pk]))
+        self.assertContains(odpowiedz, 'Zakończony o')
+        self.client.post(reverse('wznow_sesje', args=[self.sesja.pk]))
+        self.sesja.refresh_from_db()
+        self.assertIsNone(self.sesja.zakonczono)
+
+    def test_get_jest_niedozwolony(self):
+        self.assertEqual(self.client.get(reverse('zakoncz_sesje', args=[self.sesja.pk])).status_code, 405)
+        self.assertEqual(self.client.get(reverse('wznow_sesje', args=[self.sesja.pk])).status_code, 405)
+
+    def test_cudza_sesja_zwraca_404(self):
+        self.client.force_login(self.bartek)
+        self.assertEqual(
+            self.client.post(reverse('zakoncz_sesje', args=[self.sesja.pk])).status_code, 404)
+
+    def test_trening_bez_planu_zapamietuje_start_tylko_dla_dzisiejszej_daty(self):
+        self.client.post(reverse('dodaj_sesje'), {'data': date.today().isoformat(), 'nazwa': 'Dzis', 'notatki': ''})
+        self.client.post(reverse('dodaj_sesje'), {'data': '2020-01-01', 'nazwa': 'Dawno', 'notatki': ''})
+        self.assertIsNotNone(SesjaTreningowa.objects.get(nazwa='Dzis').rozpoczeto)
+        self.assertIsNone(SesjaTreningowa.objects.get(nazwa='Dawno').rozpoczeto)
+
+
+class StatystykiProgresTest(HistoriaTestBase):
+    def test_domyslnie_wybiera_najczesciej_cwiczone(self):
+        rzadkie = Cwiczenie.objects.create(nazwa='Rzadkie', kategoria='inne')
+        self.sesja_z(date(2025, 1, 1), ((8, 50),))
+        self.sesja_z(date(2025, 1, 8), ((8, 55),))
+        self.sesja_z(date(2025, 1, 9), ((8, 20),), cwiczenie=rzadkie)
+        odpowiedz = self.client.get(reverse('statystyki'))
+        self.assertEqual(odpowiedz.context['wybrane_cwiczenie'], self.publiczne)
+        self.assertEqual(odpowiedz.context['progres_ciezar'], [50.0, 55.0])
+
+    def test_wybor_cwiczenia_z_adresu(self):
+        rzadkie = Cwiczenie.objects.create(nazwa='Rzadkie', kategoria='inne')
+        self.sesja_z(date(2025, 1, 1), ((8, 50),))
+        self.sesja_z(date(2025, 1, 9), ((8, 20),), cwiczenie=rzadkie)
+        odpowiedz = self.client.get(reverse('statystyki'), {'cwiczenie': rzadkie.pk})
+        self.assertEqual(odpowiedz.context['wybrane_cwiczenie'], rzadkie)
+
+    def test_nieznane_lub_niepoprawne_cwiczenie_wraca_do_domyslnego(self):
+        self.sesja_z(date(2025, 1, 1), ((8, 50),))
+        for wartosc in ('abc', '99999', str(self.prywatne_bartka.pk)):
+            with self.subTest(wartosc=wartosc):
+                odpowiedz = self.client.get(reverse('statystyki'), {'cwiczenie': wartosc})
+                self.assertEqual(odpowiedz.status_code, 200)
+                self.assertEqual(odpowiedz.context['wybrane_cwiczenie'], self.publiczne)
+
+    def test_brak_danych_nie_psuje_strony(self):
+        odpowiedz = self.client.get(reverse('statystyki'))
+        self.assertEqual(odpowiedz.status_code, 200)
+        self.assertIsNone(odpowiedz.context['wybrane_cwiczenie'])
+        self.assertEqual(odpowiedz.context['rekordy'], [])
