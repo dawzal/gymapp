@@ -1,10 +1,13 @@
-from django.shortcuts import render, redirect
-from django.contrib.auth import login, logout, authenticate
-from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
 from django.contrib import messages
+from django.contrib.auth import login, logout
+from django.contrib.auth.forms import UserCreationForm
+from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
+
 def rejestracja(request):
+    if request.user.is_authenticated:
+        return redirect('dashboard')
     if request.method == 'POST':
         formularz = UserCreationForm(request.POST)
         if formularz.is_valid():
@@ -16,16 +19,6 @@ def rejestracja(request):
         formularz = UserCreationForm()
     return render(request, 'accounts/rejestracja.html', {'formularz': formularz})
 
-def logowanie(request):
-    if request.method == 'POST':
-        formularz = AuthenticationForm(data=request.POST)
-        if formularz.is_valid():
-            uzytkownik = formularz.get_user()
-            login(request, uzytkownik)
-            return redirect('dashboard')
-    else:
-        formularz = AuthenticationForm()
-    return render(request, 'accounts/logowanie.html', {'formularz': formularz})
 
 @require_POST
 def wylogowanie(request):

@@ -12,7 +12,8 @@
             <div class="card-body">
                 <form method="post">
                     {% csrf_token %}
-                    {{ formularz.as_p }}
+                    <input type="hidden" name="next" value="{{ next }}">
+                    {{ form.as_p }}
                     <button type="submit" class="btn btn-dark w-100 mt-2">Zaloguj się</button>
                 </form>
                 <p class="mt-3 text-center">Nie masz konta? <a href="{% url 'rejestracja' %}">Zarejestruj się</a></p>
