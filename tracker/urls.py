@@ -12,6 +12,7 @@ urlpatterns = [
     path('plany/<int:pk>/edytuj/', views.edytuj_plan, name='edytuj_plan'),
     path('plany/<int:pk>/usun/', views.usun_plan, name='usun_plan'),
     path('plany/<int:plan_pk>/dodaj-cwiczenie/', views.dodaj_cwiczenie_do_planu, name='dodaj_cwiczenie_do_planu'),
+    path('plany/<int:plan_pk>/kolejnosc/', views.zmien_kolejnosc, name='zmien_kolejnosc'),
     path('plany/<int:plan_pk>/rozpocznij/', views.rozpocznij_trening, name='rozpocznij_trening'),
     path('cwiczenie-planu/<int:pk>/edytuj/', views.edytuj_cwiczenie_planu, name='edytuj_cwiczenie_planu'),
     path('cwiczenie-planu/<int:pk>/usun/', views.usun_cwiczenie_planu, name='usun_cwiczenie_planu'),
@@ -24,6 +25,7 @@ urlpatterns = [
     path('dziennik/<int:pk>/edytuj/', views.edytuj_sesje, name='edytuj_sesje'),
     path('dziennik/<int:pk>/usun/', views.usun_sesje, name='usun_sesje'),
     path('wpis/<int:pk>/edytuj/', views.edytuj_wpis, name='edytuj_wpis'),
+    path('wpis/<int:pk>/serie/', views.zapisz_serie, name='zapisz_serie'),
     path('wpis/<int:pk>/usun/', views.usun_wpis, name='usun_wpis'),
     path('statystyki/', views.statystyki, name='statystyki'),
 ]

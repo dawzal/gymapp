@@ -3,6 +3,12 @@
 {% block tytul %}{{ sesja.data }} - GymApp{% endblock %}
 
 {% block zawartosc %}
+<style>
+    .tabela-serii tbody { counter-reset: seria; }
+    .tabela-serii tbody tr { counter-increment: seria; }
+    .tabela-serii td.numer::before { content: counter(seria); }
+</style>
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h2>{{ sesja.nazwa|default:"Sesja treningowa" }}</h2>
@@ -19,51 +25,83 @@
 </div>
 
 <div class="row">
-    <div class="col-md-7">
-        <div class="card mb-4">
-            <div class="card-header bg-dark text-white">
-                <h5 class="mb-0">Wykonane ćwiczenia</h5>
+    <div class="col-lg-8">
+        {% for karta in karty %}
+        {% with wpis=karta.wpis zestaw=karta.zestaw %}
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <strong>
+                    {{ wpis.cwiczenie.nazwa }}
+                    {% if wpis.notatki %}
+                    <span class="badge bg-secondary ms-1" data-bs-toggle="tooltip" title="{{ wpis.notatki }}" tabindex="0">notatka</span>
+                    {% endif %}
+                </strong>
+                <div class="d-flex gap-1">
+                    <a href="{% url 'edytuj_wpis' wpis.pk %}" class="btn btn-sm btn-outline-dark">Zmień ćwiczenie</a>
+                    <a href="{% url 'usun_wpis' wpis.pk %}" class="btn btn-sm btn-outline-danger">Usuń</a>
+                </div>
             </div>
             <div class="card-body">
-                {% if wpisy %}
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Ćwiczenie</th>
-                                <th>Serie</th>
-                                <th>Powt.</th>
-                                <th>Ciężar</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for wpis in wpisy %}
+                <form method="post" action="{% url 'zapisz_serie' wpis.pk %}">
+                    {% csrf_token %}
+                    {{ zestaw.management_form }}
+                    {% for blad in zestaw.non_form_errors %}
+                    <div class="alert alert-danger">{{ blad }}</div>
+                    {% endfor %}
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle tabela-serii mb-2">
+                            <thead>
                                 <tr>
-                                    <td>
-                                        {{ wpis.cwiczenie.nazwa }}
-                                        {% if wpis.notatki %}
-                                        <span class="badge bg-secondary ms-1" data-bs-toggle="tooltip" title="{{ wpis.notatki }}" tabindex="0">notatka</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ wpis.serie }}</td>
-                                    <td>{{ wpis.powtorzenia }}</td>
-                                    <td>{{ wpis.ciezar }} kg</td>
-                                    <td>
-                                        <a href="{% url 'edytuj_wpis' wpis.pk %}" class="btn btn-sm btn-outline-dark">Edytuj</a>
-                                        <a href="{% url 'usun_wpis' wpis.pk %}" class="btn btn-sm btn-outline-danger">Usuń</a>
-                                    </td>
+                                    <th>Seria</th>
+                                    <th>Powtórzenia</th>
+                                    <th>Ciężar (kg)</th>
+                                    <th>Usuń</th>
                                 </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                {% else %}
-                    <p class="text-muted">Brak ćwiczeń. Dodaj pierwsze po prawej!</p>
-                {% endif %}
+                            </thead>
+                            <tbody id="serie-{{ zestaw.prefix }}">
+                                {% for form in zestaw %}
+                                <tr>
+                                    <td class="numer"></td>
+                                    <td>
+                                        {% for ukryte in form.hidden_fields %}{{ ukryte }}{% endfor %}
+                                        {{ form.powtorzenia }}
+                                        {% for blad in form.powtorzenia.errors %}<div class="text-danger small">{{ blad }}</div>{% endfor %}
+                                    </td>
+                                    <td>
+                                        {{ form.ciezar }}
+                                        {% for blad in form.ciezar.errors %}<div class="text-danger small">{{ blad }}</div>{% endfor %}
+                                    </td>
+                                    <td>{{ form.DELETE }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <template id="szablon-{{ zestaw.prefix }}">
+                        <tr>
+                            <td class="numer"></td>
+                            <td>
+                                {% for ukryte in zestaw.empty_form.hidden_fields %}{{ ukryte }}{% endfor %}
+                                {{ zestaw.empty_form.powtorzenia }}
+                            </td>
+                            <td>{{ zestaw.empty_form.ciezar }}</td>
+                            <td><button type="button" class="btn-close" data-usun-wiersz aria-label="Usuń wiersz"></button></td>
+                        </tr>
+                    </template>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-dark btn-sm" data-dodaj-serie="{{ zestaw.prefix }}">+ Seria</button>
+                        <button type="submit" class="btn btn-dark btn-sm">Zapisz serie</button>
+                    </div>
+                </form>
             </div>
         </div>
+        {% endwith %}
+        {% empty %}
+        <div class="alert alert-info">Brak ćwiczeń. Dodaj pierwsze po prawej!</div>
+        {% endfor %}
     </div>
 
-    <div class="col-md-5">
+    <div class="col-lg-4">
         <div class="card">
             <div class="card-header bg-secondary text-white">
                 <h5 class="mb-0">Dodaj ćwiczenie</h5>
@@ -72,11 +110,32 @@
                 <form method="post">
                     {% csrf_token %}
                     {% include 'pola_formularza.html' %}
-
-                    <button type="submit" class="btn btn-dark w-100">Zapisz ćwiczenie</button>
+                    <p class="text-muted small">
+                        Zostanie utworzona podana liczba serii. Powtórzenia i ciężar każdej serii
+                        możesz potem zmienić osobno.
+                    </p>
+                    <button type="submit" class="btn btn-dark w-100">Dodaj ćwiczenie</button>
                 </form>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+    document.querySelectorAll('[data-dodaj-serie]').forEach(function (przycisk) {
+        przycisk.addEventListener('click', function () {
+            const prefiks = przycisk.dataset.dodajSerie;
+            const licznik = document.getElementById('id_' + prefiks + '-TOTAL_FORMS');
+            const szablon = document.getElementById('szablon-' + prefiks).innerHTML;
+            document.getElementById('serie-' + prefiks).insertAdjacentHTML(
+                'beforeend', szablon.replaceAll('__prefix__', licznik.value));
+            licznik.value = parseInt(licznik.value, 10) + 1;
+        });
+    });
+    document.addEventListener('click', function (zdarzenie) {
+        if (zdarzenie.target.matches('[data-usun-wiersz]')) {
+            zdarzenie.target.closest('tr').remove();
+        }
+    });
+</script>
 {% endblock %}

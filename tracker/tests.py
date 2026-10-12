@@ -1,3 +1,4 @@
+import json
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -5,9 +6,18 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
-from .forms import CwiczeniePlanuForm, WpisForm
-from .models import Cwiczenie, CwiczeniePlanu, PlanTreningowy, SesjaTreningowa, WpisDziennika
+from .forms import CwiczeniePlanuForm, NowyWpisForm, WpisForm
+from .models import (
+    Cwiczenie, CwiczeniePlanu, PlanTreningowy, SeriaWpisu, SesjaTreningowa, WpisDziennika,
+)
 from .views import oblicz_1rm
+
+
+def utworz_wpis(sesja, cwiczenie, serie=((5, 50),), notatki=''):
+    wpis = WpisDziennika.objects.create(sesja=sesja, cwiczenie=cwiczenie, notatki=notatki)
+    for powtorzenia, ciezar in serie:
+        SeriaWpisu.objects.create(wpis=wpis, powtorzenia=powtorzenia, ciezar=ciezar)
+    return wpis
 
 
 class BazowyTest(TestCase):
@@ -40,7 +50,7 @@ class DostepDoCwiczenTest(BazowyTest):
 
     def test_formularz_wpisu_odrzuca_cudze_prywatne(self):
         formularz = WpisForm(
-            {'cwiczenie': self.prywatne_bartka.pk, 'serie': 3, 'powtorzenia': 8, 'ciezar': '50'},
+            {'cwiczenie': self.prywatne_bartka.pk, 'notatki': ''},
             uzytkownik=self.ania,
         )
         self.assertFalse(formularz.is_valid())
@@ -58,8 +68,7 @@ class DostepDoDanychTest(BazowyTest):
         self.cwiczenie_planu_bartka = CwiczeniePlanu.objects.create(
             plan=self.plan_bartka, cwiczenie=self.publiczne)
         self.sesja_bartka = SesjaTreningowa.objects.create(uzytkownik=self.bartek, data=date.today())
-        self.wpis_bartka = WpisDziennika.objects.create(
-            sesja=self.sesja_bartka, cwiczenie=self.publiczne, serie=3, powtorzenia=5, ciezar=100)
+        self.wpis_bartka = utworz_wpis(self.sesja_bartka, self.publiczne, serie=((5, 100),) * 3)
 
     def test_cudze_obiekty_zwracaja_404(self):
         adresy = [
@@ -105,7 +114,8 @@ class RozpocznijTreningTest(BazowyTest):
         self.assertRedirects(odpowiedz, reverse('szczegoly_sesji', args=[sesja.pk]))
         self.assertEqual(sesja.wpisy.count(), 2)
         wpis = sesja.wpisy.get(cwiczenie=self.publiczne)
-        self.assertEqual((wpis.serie, wpis.powtorzenia, wpis.ciezar), (4, 6, Decimal('80')))
+        serie = [(s.powtorzenia, s.ciezar) for s in wpis.serie.all()]
+        self.assertEqual(serie, [(6, Decimal('80'))] * 4)
 
     def test_get_nie_tworzy_sesji(self):
         plan = PlanTreningowy.objects.create(nazwa='Push', uzytkownik=self.ania)
@@ -137,9 +147,7 @@ class StatystykiTest(BazowyTest):
         drugie = Cwiczenie.objects.create(nazwa='Wiosla', kategoria='plecy')
         for i in range(12):
             sesja = SesjaTreningowa.objects.create(uzytkownik=self.ania, data=dzis - timedelta(days=i))
-            WpisDziennika.objects.create(
-                sesja=sesja, cwiczenie=self.publiczne if i % 2 else drugie,
-                serie=3, powtorzenia=5, ciezar=50)
+            utworz_wpis(sesja, self.publiczne if i % 2 else drugie, serie=((5, 50),) * 3)
         odpowiedz = self.client.get(reverse('statystyki'))
         self.assertEqual(odpowiedz.context['liczba_roznych_cwiczen'], 2)
         etykiety = odpowiedz.context['etykiety_wykresu']
@@ -149,22 +157,151 @@ class StatystykiTest(BazowyTest):
 
     def test_nie_wlicza_danych_innych_uzytkownikow(self):
         sesja = SesjaTreningowa.objects.create(uzytkownik=self.bartek, data=date.today())
-        WpisDziennika.objects.create(
-            sesja=sesja, cwiczenie=self.publiczne, serie=3, powtorzenia=5, ciezar=50)
+        utworz_wpis(sesja, self.publiczne, serie=((5, 50),) * 3)
         odpowiedz = self.client.get(reverse('statystyki'))
         self.assertEqual(odpowiedz.context['liczba_wpisow'], 0)
         self.assertEqual(odpowiedz.context['liczba_sesji'], 0)
 
 
-class WalidacjaWpisuTest(BazowyTest):
-    def test_odrzuca_zerowe_serie_i_ujemny_ciezar(self):
-        formularz = WpisForm(
-            {'cwiczenie': self.publiczne.pk, 'serie': 0, 'powtorzenia': 5, 'ciezar': '-1'},
+class WalidacjaSeriiTest(BazowyTest):
+    def test_nowy_wpis_odrzuca_zerowa_liczbe_serii_i_ujemny_ciezar(self):
+        formularz = NowyWpisForm(
+            {'cwiczenie': self.publiczne.pk, 'liczba_serii': 0, 'powtorzenia': 5, 'ciezar': '-1'},
             uzytkownik=self.ania,
         )
         self.assertFalse(formularz.is_valid())
-        self.assertIn('serie', formularz.errors)
+        self.assertIn('liczba_serii', formularz.errors)
         self.assertIn('ciezar', formularz.errors)
+
+    def test_nowy_wpis_tworzy_podana_liczbe_serii(self):
+        sesja = SesjaTreningowa.objects.create(uzytkownik=self.ania, data=date.today())
+        self.client.post(reverse('szczegoly_sesji', args=[sesja.pk]), {
+            'cwiczenie': self.publiczne.pk, 'liczba_serii': 4, 'powtorzenia': 8,
+            'ciezar': '45', 'notatki': 'x',
+        })
+        wpis = sesja.wpisy.get()
+        self.assertEqual(wpis.serie.count(), 4)
+        self.assertEqual(wpis.notatki, 'x')
+
+
+class SeriePoSeriiTest(BazowyTest):
+    def setUp(self):
+        super().setUp()
+        self.sesja = SesjaTreningowa.objects.create(uzytkownik=self.ania, data=date.today())
+        self.wpis = utworz_wpis(self.sesja, self.publiczne, serie=((8, 60), (8, 60), (8, 60)))
+        self.prefiks = f'serie{self.wpis.pk}'
+
+    def dane_formularza(self, serie, usun=(), nowe=()):
+        pozycje = list(self.wpis.serie.all())
+        dane = {
+            f'{self.prefiks}-TOTAL_FORMS': len(pozycje) + len(nowe),
+            f'{self.prefiks}-INITIAL_FORMS': len(pozycje),
+            f'{self.prefiks}-MIN_NUM_FORMS': 0,
+            f'{self.prefiks}-MAX_NUM_FORMS': 1000,
+        }
+        for i, seria in enumerate(pozycje):
+            powt, ciezar = serie[i]
+            dane[f'{self.prefiks}-{i}-id'] = seria.pk
+            dane[f'{self.prefiks}-{i}-wpis'] = self.wpis.pk
+            dane[f'{self.prefiks}-{i}-powtorzenia'] = powt
+            dane[f'{self.prefiks}-{i}-ciezar'] = ciezar
+            if i in usun:
+                dane[f'{self.prefiks}-{i}-DELETE'] = 'on'
+        for j, (powt, ciezar) in enumerate(nowe, start=len(pozycje)):
+            dane[f'{self.prefiks}-{j}-wpis'] = self.wpis.pk
+            dane[f'{self.prefiks}-{j}-powtorzenia'] = powt
+            dane[f'{self.prefiks}-{j}-ciezar'] = ciezar
+        return dane
+
+    def wyslij(self, dane):
+        return self.client.post(reverse('zapisz_serie', args=[self.wpis.pk]), dane)
+
+    def test_kazda_seria_moze_miec_inna_liczbe_powtorzen(self):
+        odpowiedz = self.wyslij(self.dane_formularza([(8, '60'), (7, '60'), (5, '60')]))
+        self.assertRedirects(odpowiedz, reverse('szczegoly_sesji', args=[self.sesja.pk]))
+        powtorzenia = [s.powtorzenia for s in self.wpis.serie.all()]
+        self.assertEqual(powtorzenia, [8, 7, 5])
+
+    def test_mozna_dodac_serie(self):
+        self.wyslij(self.dane_formularza([(8, '60')] * 3, nowe=[(4, '65')]))
+        self.assertEqual(self.wpis.serie.count(), 4)
+        self.assertEqual(self.wpis.serie.last().ciezar, Decimal('65'))
+
+    def test_mozna_usunac_serie(self):
+        self.wyslij(self.dane_formularza([(8, '60')] * 3, usun=[1]))
+        self.assertEqual(self.wpis.serie.count(), 2)
+
+    def test_bledne_dane_nie_zapisuja_i_pokazuja_blad(self):
+        odpowiedz = self.wyslij(self.dane_formularza([(0, '60'), (8, '-5'), (8, '60')]))
+        self.assertEqual(odpowiedz.status_code, 200)
+        self.assertContains(odpowiedz, 'text-danger')
+        self.assertEqual([s.powtorzenia for s in self.wpis.serie.all()], [8, 8, 8])
+
+    def test_nie_mozna_zapisac_serii_cudzego_wpisu(self):
+        sesja_b = SesjaTreningowa.objects.create(uzytkownik=self.bartek, data=date.today())
+        wpis_b = utworz_wpis(sesja_b, self.publiczne)
+        odpowiedz = self.client.post(reverse('zapisz_serie', args=[wpis_b.pk]), {})
+        self.assertEqual(odpowiedz.status_code, 404)
+
+    def test_get_na_zapisie_serii_przekierowuje(self):
+        odpowiedz = self.client.get(reverse('zapisz_serie', args=[self.wpis.pk]))
+        self.assertRedirects(odpowiedz, reverse('szczegoly_sesji', args=[self.sesja.pk]))
+
+
+class KolejnoscCwiczenTest(BazowyTest):
+    def setUp(self):
+        super().setUp()
+        self.plan = PlanTreningowy.objects.create(nazwa='Plan', uzytkownik=self.ania)
+        self.a = CwiczeniePlanu.objects.create(plan=self.plan, cwiczenie=self.publiczne)
+        self.b = CwiczeniePlanu.objects.create(plan=self.plan, cwiczenie=self.prywatne_ani)
+        self.c = CwiczeniePlanu.objects.create(plan=self.plan, cwiczenie=self.publiczne)
+        self.adres = reverse('zmien_kolejnosc', args=[self.plan.pk])
+
+    def wyslij(self, tresc):
+        return self.client.post(
+            self.adres, data=json.dumps(tresc), content_type='application/json')
+
+    def test_nowe_cwiczenia_trafiaja_na_koniec(self):
+        self.assertEqual(list(self.plan.cwiczenia.all()), [self.a, self.b, self.c])
+
+    def test_zmiana_kolejnosci(self):
+        odpowiedz = self.wyslij({'kolejnosc': [self.c.pk, self.a.pk, self.b.pk]})
+        self.assertEqual(odpowiedz.status_code, 200)
+        self.assertEqual(list(self.plan.cwiczenia.all()), [self.c, self.a, self.b])
+
+    def test_kolejnosc_przenosi_sie_na_trening(self):
+        self.wyslij({'kolejnosc': [self.c.pk, self.b.pk, self.a.pk]})
+        self.client.post(reverse('rozpocznij_trening', args=[self.plan.pk]))
+        sesja = SesjaTreningowa.objects.get(uzytkownik=self.ania)
+        self.assertEqual(
+            [w.cwiczenie_id for w in sesja.wpisy.all()],
+            [self.c.cwiczenie_id, self.b.cwiczenie_id, self.a.cwiczenie_id])
+
+    def test_odrzuca_niepelna_lub_obca_liste(self):
+        for tresc in ({'kolejnosc': [self.a.pk]}, {'kolejnosc': [self.a.pk, self.b.pk, 9999]},
+                      {'inne': 1}, {'kolejnosc': 'abc'}):
+            with self.subTest(tresc=tresc):
+                self.assertEqual(self.wyslij(tresc).status_code, 400)
+        self.assertEqual(list(self.plan.cwiczenia.all()), [self.a, self.b, self.c])
+
+    def test_cudzy_plan_zwraca_404(self):
+        self.client.force_login(self.bartek)
+        odpowiedz = self.wyslij({'kolejnosc': [self.c.pk, self.a.pk, self.b.pk]})
+        self.assertEqual(odpowiedz.status_code, 404)
+
+    def test_get_jest_niedozwolony(self):
+        self.assertEqual(self.client.get(self.adres).status_code, 405)
+
+    def test_kopia_gotowego_planu_zachowuje_kolejnosc(self):
+        szablon = PlanTreningowy.objects.create(nazwa='Gotowy', uzytkownik=None)
+        pierwsze = CwiczeniePlanu.objects.create(plan=szablon, cwiczenie=self.publiczne)
+        drugie = CwiczeniePlanu.objects.create(plan=szablon, cwiczenie=self.prywatne_ani)
+        pierwsze.kolejnosc, drugie.kolejnosc = 1, 0
+        CwiczeniePlanu.objects.bulk_update([pierwsze, drugie], ['kolejnosc'])
+        kopia = szablon.kopiuj_dla(self.ania)
+        self.assertEqual(
+            [c.cwiczenie_id for c in kopia.cwiczenia.all()],
+            [self.prywatne_ani.pk, self.publiczne.pk])
 
 
 class WlasneStronyTest(BazowyTest):
@@ -173,8 +310,7 @@ class WlasneStronyTest(BazowyTest):
         self.plan = PlanTreningowy.objects.create(nazwa='Moj plan', uzytkownik=self.ania)
         self.cwiczenie_planu = CwiczeniePlanu.objects.create(plan=self.plan, cwiczenie=self.publiczne)
         self.sesja = SesjaTreningowa.objects.create(uzytkownik=self.ania, data=date(2025, 3, 7))
-        self.wpis = WpisDziennika.objects.create(
-            sesja=self.sesja, cwiczenie=self.publiczne, serie=3, powtorzenia=5, ciezar=60)
+        self.wpis = utworz_wpis(self.sesja, self.publiczne, serie=((8, 60), (7, 60), (5, 60)))
 
     def test_wszystkie_strony_renderuja_sie(self):
         adresy = [
@@ -220,12 +356,14 @@ class WlasneStronyTest(BazowyTest):
         })
         self.assertEqual(plan.cwiczenia.count(), 1)
 
-    def test_edycja_wpisu(self):
+    def test_edycja_wpisu_zmienia_cwiczenie_i_notatke(self):
         self.client.post(reverse('edytuj_wpis', args=[self.wpis.pk]), {
-            'cwiczenie': self.publiczne.pk, 'serie': 5, 'powtorzenia': 3, 'ciezar': '70', 'notatki': '',
+            'cwiczenie': self.prywatne_ani.pk, 'notatki': 'Nowa',
         })
         self.wpis.refresh_from_db()
-        self.assertEqual((self.wpis.serie, self.wpis.powtorzenia), (5, 3))
+        self.assertEqual(self.wpis.cwiczenie, self.prywatne_ani)
+        self.assertEqual(self.wpis.notatki, 'Nowa')
+        self.assertEqual(self.wpis.serie.count(), 3)
 
     def test_usuniecie_dziala_tylko_przez_post(self):
         self.client.get(reverse('usun_sesje', args=[self.sesja.pk]))

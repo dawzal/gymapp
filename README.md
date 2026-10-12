@@ -8,8 +8,9 @@ Aplikacja webowa w Django do planowania treningów siłowych i prowadzenia dzien
 - baza ćwiczeń (domyślne publiczne oraz własne, publiczne lub prywatne),
 - plany treningowe z ćwiczeniami (serie, powtórzenia, ciężar, notatki wyświetlane jako dymek),
 - gotowe plany dla początkujących i średniozaawansowanych (dodawane jako własna, edytowalna kopia),
-- rozpoczęcie treningu z planu: automatyczne utworzenie sesji z wpisami,
-- dziennik treningów (sesje i wpisy, edycja i usuwanie),
+- zmiana kolejności ćwiczeń w planie przeciąganiem myszą lub palcem,
+- rozpoczęcie treningu z planu: automatyczne utworzenie sesji z wpisami i seriami,
+- dziennik treningów, w którym każda seria ma własną liczbę powtórzeń i ciężar,
 - statystyki: najczęstsze ćwiczenia i wykres aktywności z ostatnich 10 dni treningowych,
 - kalkulator maksymalnego ciężaru (1RM, wzór Brzyckiego) z tabelą procentową.
 

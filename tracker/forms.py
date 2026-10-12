@@ -1,13 +1,18 @@
 from django import forms
-from .models import Cwiczenie, PlanTreningowy, CwiczeniePlanu, SesjaTreningowa, WpisDziennika
+from django.forms import inlineformset_factory
+
+from .models import (
+    Cwiczenie, CwiczeniePlanu, PlanTreningowy, SeriaWpisu, SesjaTreningowa, WpisDziennika,
+)
 
 
 def ogranicz_cwiczenia(formularz, uzytkownik):
     if uzytkownik is None:
         return
     dostepne = Cwiczenie.dostepne_dla(uzytkownik)
-    if formularz.instance.pk and formularz.instance.cwiczenie_id:
-        dostepne = dostepne | Cwiczenie.objects.filter(pk=formularz.instance.cwiczenie_id)
+    instancja = getattr(formularz, 'instance', None)
+    if instancja is not None and instancja.pk and instancja.cwiczenie_id:
+        dostepne = dostepne | Cwiczenie.objects.filter(pk=instancja.cwiczenie_id)
     dostepne = dostepne.distinct()
     formularz.fields['cwiczenie'].queryset = dostepne
     formularz.fields['cwiczenie'].choices = pogrupowane_wybory(dostepne)
@@ -128,22 +133,70 @@ class SesjaForm(forms.ModelForm):
 class WpisForm(forms.ModelForm):
     class Meta:
         model = WpisDziennika
-        fields = ['cwiczenie', 'serie', 'powtorzenia', 'ciezar', 'notatki']
+        fields = ['cwiczenie', 'notatki']
         widgets = {
             'cwiczenie': forms.Select(attrs={'class': 'form-select'}),
-            'serie': forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
-            'powtorzenia': forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
-            'ciezar': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'step': '0.5'}),
             'notatki': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
         labels = {
             'cwiczenie': 'Ćwiczenie',
-            'serie': 'Serie',
-            'powtorzenia': 'Powtórzenia',
-            'ciezar': 'Ciężar (kg)',
             'notatki': 'Notatki',
         }
 
     def __init__(self, *args, uzytkownik=None, **kwargs):
         super().__init__(*args, **kwargs)
         ogranicz_cwiczenia(self, uzytkownik)
+
+
+class NowyWpisForm(forms.Form):
+    cwiczenie = forms.ModelChoiceField(
+        queryset=Cwiczenie.objects.none(),
+        label='Ćwiczenie',
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+    liczba_serii = forms.IntegerField(
+        label='Liczba serii', min_value=1, max_value=20, initial=3,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'max': 20}),
+    )
+    powtorzenia = forms.IntegerField(
+        label='Powtórzenia w serii', min_value=1, max_value=100, initial=10,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'max': 100}),
+    )
+    ciezar = forms.DecimalField(
+        label='Ciężar (kg)', min_value=0, max_digits=6, decimal_places=2, initial=0,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'step': '0.5'}),
+    )
+    notatki = forms.CharField(
+        label='Notatki', required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+    )
+
+    def __init__(self, *args, uzytkownik=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        ogranicz_cwiczenia(self, uzytkownik)
+
+    def zapisz(self, sesja):
+        dane = self.cleaned_data
+        wpis = WpisDziennika.objects.create(
+            sesja=sesja, cwiczenie=dane['cwiczenie'], notatki=dane['notatki'])
+        SeriaWpisu.objects.bulk_create([
+            SeriaWpisu(wpis=wpis, powtorzenia=dane['powtorzenia'], ciezar=dane['ciezar'])
+            for _ in range(dane['liczba_serii'])
+        ])
+        return wpis
+
+
+class SeriaForm(forms.ModelForm):
+    class Meta:
+        model = SeriaWpisu
+        fields = ['powtorzenia', 'ciezar']
+        widgets = {
+            'powtorzenia': forms.NumberInput(attrs={
+                'class': 'form-control form-control-sm', 'min': 1, 'max': 100}),
+            'ciezar': forms.NumberInput(attrs={
+                'class': 'form-control form-control-sm', 'min': 0, 'step': '0.5'}),
+        }
+
+
+SeriaFormSet = inlineformset_factory(
+    WpisDziennika, SeriaWpisu, form=SeriaForm, extra=0, can_delete=True)

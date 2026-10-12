@@ -1,6 +1,6 @@
 from django.core.validators import MinValueValidator
 from django.db import models
-from django.db.models import Q
+from django.db.models import Max, Q
 from django.contrib.auth.models import User
 
 
@@ -56,8 +56,9 @@ class PlanTreningowy(models.Model):
         CwiczeniePlanu.objects.bulk_create([
             CwiczeniePlanu(
                 plan=kopia, cwiczenie=c.cwiczenie, serie=c.serie,
-                powtorzenia=c.powtorzenia, ciezar=c.ciezar, notatki=c.notatki)
-            for c in self.cwiczenia.select_related('cwiczenie')
+                powtorzenia=c.powtorzenia, ciezar=c.ciezar, notatki=c.notatki,
+                kolejnosc=pozycja)
+            for pozycja, c in enumerate(self.cwiczenia.select_related('cwiczenie'))
         ])
         return kopia
 
@@ -76,6 +77,14 @@ class CwiczeniePlanu(models.Model):
     powtorzenia = models.PositiveIntegerField(default=10, validators=[MinValueValidator(1)])
     ciezar = models.DecimalField(max_digits=6, decimal_places=2, default=0, validators=[MinValueValidator(0)])
     notatki = models.TextField(blank=True)
+    kolejnosc = models.PositiveIntegerField(default=0)
+
+    def save(self, *args, **kwargs):
+        if self._state.adding and self.kolejnosc == 0:
+            najwieksza = CwiczeniePlanu.objects.filter(plan=self.plan).aggregate(
+                najwieksza=Max('kolejnosc'))['najwieksza']
+            self.kolejnosc = 0 if najwieksza is None else najwieksza + 1
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.cwiczenie.nazwa} - {self.serie}x{self.powtorzenia}"
@@ -83,6 +92,7 @@ class CwiczeniePlanu(models.Model):
     class Meta:
         verbose_name = 'Ćwiczenie planu'
         verbose_name_plural = 'Ćwiczenia planu'
+        ordering = ['kolejnosc', 'pk']
 
 
 class SesjaTreningowa(models.Model):
@@ -103,14 +113,27 @@ class SesjaTreningowa(models.Model):
 class WpisDziennika(models.Model):
     sesja = models.ForeignKey(SesjaTreningowa, on_delete=models.CASCADE, related_name='wpisy')
     cwiczenie = models.ForeignKey(Cwiczenie, on_delete=models.CASCADE)
-    serie = models.PositiveIntegerField(validators=[MinValueValidator(1)])
-    powtorzenia = models.PositiveIntegerField(validators=[MinValueValidator(1)])
-    ciezar = models.DecimalField(max_digits=6, decimal_places=2, validators=[MinValueValidator(0)])
     notatki = models.TextField(blank=True)
 
     def __str__(self):
-        return f"{self.cwiczenie.nazwa} - {self.serie}x{self.powtorzenia} @ {self.ciezar}kg"
+        return f"{self.cwiczenie.nazwa} ({self.sesja.data})"
 
     class Meta:
         verbose_name = 'Wpis dziennika'
         verbose_name_plural = 'Wpisy dziennika'
+        ordering = ['pk']
+
+
+class SeriaWpisu(models.Model):
+    wpis = models.ForeignKey(WpisDziennika, on_delete=models.CASCADE, related_name='serie')
+    powtorzenia = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    ciezar = models.DecimalField(
+        max_digits=6, decimal_places=2, default=0, validators=[MinValueValidator(0)])
+
+    def __str__(self):
+        return f"{self.powtorzenia} x {self.ciezar} kg"
+
+    class Meta:
+        verbose_name = 'Seria'
+        verbose_name_plural = 'Serie'
+        ordering = ['pk']

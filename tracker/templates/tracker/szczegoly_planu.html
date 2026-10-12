@@ -28,6 +28,7 @@
             <table class="table table-striped">
                 <thead>
                     <tr>
+                        <th></th>
                         <th>Ćwiczenie</th>
                         <th>Serie</th>
                         <th>Powtórzenia</th>
@@ -35,9 +36,10 @@
                         <th></th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="cwiczenia-planu">
                     {% for c in cwiczenia %}
-                        <tr>
+                        <tr data-id="{{ c.pk }}">
+                            <td class="uchwyt text-muted" style="cursor: grab; user-select: none;" title="Przeciągnij, aby zmienić kolejność">&equiv;</td>
                             <td>
                                 {{ c.cwiczenie.nazwa }}
                                 {% if c.notatki %}
@@ -55,8 +57,39 @@
                     {% endfor %}
                 </tbody>
             </table>
+            <p id="komunikat-kolejnosc" class="text-muted small mb-0">
+                Przeciągnij ćwiczenie za symbol &equiv;, aby zmienić kolejność. Zmiana zapisuje się automatycznie.
+            </p>
         </div>
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+    <script>
+        const tabela = document.getElementById('cwiczenia-planu');
+        const komunikat = document.getElementById('komunikat-kolejnosc');
+        Sortable.create(tabela, {
+            handle: '.uchwyt',
+            animation: 150,
+            onEnd: function () {
+                const identyfikatory = Array.from(tabela.querySelectorAll('tr')).map(function (wiersz) {
+                    return parseInt(wiersz.dataset.id, 10);
+                });
+                fetch('{% url "zmien_kolejnosc" plan.pk %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({ kolejnosc: identyfikatory })
+                }).then(function (odpowiedz) {
+                    if (!odpowiedz.ok) { throw new Error('blad'); }
+                    komunikat.textContent = 'Kolejność zapisana.';
+                }).catch(function () {
+                    komunikat.textContent = 'Nie udało się zapisać kolejności. Odśwież stronę.';
+                });
+            }
+        });
+    </script>
 {% else %}
     <div class="alert alert-info">
         Brak ćwiczeń w planie. <a href="{% url 'dodaj_cwiczenie_do_planu' plan.pk %}">Dodaj pierwsze ćwiczenie!</a>

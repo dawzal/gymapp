@@ -1,3 +1,4 @@
+import json
 import math
 from datetime import timedelta
 
@@ -5,12 +6,19 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Count
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
-from .forms import CwiczenieForm, CwiczeniePlanuForm, PlanTreningowyForm, SesjaForm, WpisForm
-from .models import Cwiczenie, CwiczeniePlanu, PlanTreningowy, SesjaTreningowa, WpisDziennika
+from .forms import (
+    CwiczenieForm, CwiczeniePlanuForm, NowyWpisForm, PlanTreningowyForm, SeriaFormSet,
+    SesjaForm, WpisForm,
+)
+from .models import (
+    Cwiczenie, CwiczeniePlanu, PlanTreningowy, SeriaWpisu, SesjaTreningowa, WpisDziennika,
+)
 
 
 def pokaz_formularz(request, formularz, tytul, przycisk, anuluj, podtytul='', przycisk_kolejny=''):
@@ -119,6 +127,23 @@ def szczegoly_planu(request, pk):
     plan = get_object_or_404(PlanTreningowy, pk=pk, uzytkownik=request.user)
     cwiczenia = plan.cwiczenia.select_related('cwiczenie')
     return render(request, 'tracker/szczegoly_planu.html', {'plan': plan, 'cwiczenia': cwiczenia})
+
+
+@login_required
+@require_POST
+def zmien_kolejnosc(request, plan_pk):
+    plan = get_object_or_404(PlanTreningowy, pk=plan_pk, uzytkownik=request.user)
+    try:
+        identyfikatory = [int(pk) for pk in json.loads(request.body)['kolejnosc']]
+    except (ValueError, KeyError, TypeError):
+        return JsonResponse({'blad': 'Niepoprawne dane.'}, status=400)
+    cwiczenia = {c.pk: c for c in plan.cwiczenia.all()}
+    if sorted(identyfikatory) != sorted(cwiczenia):
+        return JsonResponse({'blad': 'Lista ćwiczeń nie pasuje do planu.'}, status=400)
+    for pozycja, pk in enumerate(identyfikatory):
+        cwiczenia[pk].kolejnosc = pozycja
+    CwiczeniePlanu.objects.bulk_update(cwiczenia.values(), ['kolejnosc'])
+    return JsonResponse({'ok': True})
 
 
 @login_required
@@ -234,17 +259,15 @@ def rozpocznij_trening(request, plan_pk):
             data=timezone.localdate(),
             nazwa=f"Trening: {plan.nazwa}",
         )
-        WpisDziennika.objects.bulk_create([
-            WpisDziennika(
-                sesja=sesja,
-                cwiczenie=c.cwiczenie,
-                serie=c.serie,
-                powtorzenia=c.powtorzenia,
-                ciezar=c.ciezar,
-                notatki=c.notatki,
+        serie = []
+        for c in cwiczenia:
+            wpis = WpisDziennika.objects.create(
+                sesja=sesja, cwiczenie=c.cwiczenie, notatki=c.notatki)
+            serie.extend(
+                SeriaWpisu(wpis=wpis, powtorzenia=c.powtorzenia, ciezar=c.ciezar)
+                for _ in range(c.serie)
             )
-            for c in cwiczenia
-        ])
+        SeriaWpisu.objects.bulk_create(serie)
     messages.success(request, f'Rozpoczęto trening: {plan.nazwa}!')
     return redirect('szczegoly_sesji', pk=sesja.pk)
 
@@ -271,21 +294,47 @@ def dodaj_sesje(request):
         podtytul='Zapisz trening od zera i dodawaj ćwiczenia w trakcie.')
 
 
+def strona_sesji(request, sesja, formularz, bledny_zestaw=None):
+    wpisy = sesja.wpisy.select_related('cwiczenie').prefetch_related('serie')
+    karty = []
+    for wpis in wpisy:
+        if bledny_zestaw is not None and bledny_zestaw.instance.pk == wpis.pk:
+            zestaw = bledny_zestaw
+        else:
+            zestaw = SeriaFormSet(instance=wpis, prefix=f'serie{wpis.pk}')
+        karty.append({'wpis': wpis, 'zestaw': zestaw})
+    return render(request, 'tracker/szczegoly_sesji.html', {
+        'sesja': sesja,
+        'karty': karty,
+        'formularz': formularz,
+    })
+
+
 @login_required
 def szczegoly_sesji(request, pk):
     sesja = get_object_or_404(SesjaTreningowa, pk=pk, uzytkownik=request.user)
-    formularz = WpisForm(request.POST or None, uzytkownik=request.user)
+    formularz = NowyWpisForm(request.POST or None, uzytkownik=request.user)
     if formularz.is_valid():
-        wpis = formularz.save(commit=False)
-        wpis.sesja = sesja
-        wpis.save()
-        messages.success(request, 'Ćwiczenie zapisane!')
+        formularz.zapisz(sesja)
+        messages.success(request, 'Ćwiczenie dodane do sesji!')
         return redirect('szczegoly_sesji', pk=sesja.pk)
-    return render(request, 'tracker/szczegoly_sesji.html', {
-        'sesja': sesja,
-        'wpisy': sesja.wpisy.select_related('cwiczenie'),
-        'formularz': formularz,
-    })
+    return strona_sesji(request, sesja, formularz)
+
+
+@login_required
+def zapisz_serie(request, pk):
+    wpis = get_object_or_404(
+        WpisDziennika.objects.select_related('sesja', 'cwiczenie'),
+        pk=pk, sesja__uzytkownik=request.user)
+    if request.method != 'POST':
+        return redirect('szczegoly_sesji', pk=wpis.sesja.pk)
+    zestaw = SeriaFormSet(request.POST, instance=wpis, prefix=f'serie{wpis.pk}')
+    if zestaw.is_valid():
+        zestaw.save()
+        messages.success(request, f'Zapisano serie: {wpis.cwiczenie.nazwa}.')
+        return redirect('szczegoly_sesji', pk=wpis.sesja.pk)
+    return strona_sesji(
+        request, wpis.sesja, NowyWpisForm(uzytkownik=request.user), bledny_zestaw=zestaw)
 
 
 @login_required
@@ -340,7 +389,7 @@ def usun_wpis(request, pk):
     return usun_obiekt(
         request, wpis,
         tytul='Usuń wpis',
-        opis=f'Czy na pewno chcesz usunąć wpis: {wpis.cwiczenie.nazwa} - {wpis.serie}x{wpis.powtorzenia} @ {wpis.ciezar} kg?',
+        opis=f'Czy na pewno chcesz usunąć ćwiczenie "{wpis.cwiczenie.nazwa}" wraz z jego seriami z tej sesji?',
         ostrzezenie='Ta operacja jest nieodwracalna.',
         anuluj=reverse('szczegoly_sesji', args=[sesja_pk]),
         po_usunieciu=reverse('szczegoly_sesji', args=[sesja_pk]),
