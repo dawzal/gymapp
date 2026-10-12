@@ -61,5 +61,3 @@ accounts/  rejestracja, logowanie, wylogowanie
 tracker/   modele, widoki, formularze, szablony i testy aplikacji
 templates/ szablon bazowy oraz wspólne szablony formularzy i potwierdzeń
 ```
-
-Szczegółowy opis architektury: [ARCHITECTURE.md](ARCHITECTURE.md).
