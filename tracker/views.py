@@ -439,6 +439,15 @@ def usun_wpis(request, pk):
     )
 
 
+ZAKRESY_PROGRESU = [
+    (30, 'Ostatni miesiąc'),
+    (90, 'Ostatnie 3 miesiące'),
+    (180, 'Ostatnie 6 miesięcy'),
+    (365, 'Ostatni rok'),
+    (0, 'Cały okres'),
+]
+
+
 PROCENTY_1RM = [
     (95, 'Siła maksymalna (1-2 powt.)'),
     (85, 'Siła (3-5 powt.)'),
@@ -501,7 +510,27 @@ def statystyki(request):
         najczestsze = wpisy.values('cwiczenie').annotate(
             liczba=Count('id')).order_by('-liczba', 'cwiczenie').first()
         wybrane = dostepne_id[najczestsze['cwiczenie']]
-    progres = progres_cwiczenia(request.user, wybrane.pk) if wybrane else []
+    try:
+        dni = int(request.GET.get('dni', 0))
+    except ValueError:
+        dni = 0
+    if dni not in {wartosc for wartosc, _ in ZAKRESY_PROGRESU}:
+        dni = 0
+    od_daty = timezone.localdate() - timedelta(days=dni) if dni else None
+    progres = progres_cwiczenia(request.user, wybrane.pk, od_daty) if wybrane else []
+    progres_dane = [
+        {
+            'etykieta': p['data'].strftime('%d.%m.%y'),
+            'data': p['data'].strftime('%d.%m.%Y'),
+            'rm': p['rm'],
+            'powt_rm': p['powt_rm'],
+            'ciezar_rm': p['ciezar_rm'],
+            'ciezar': p['ciezar'],
+            'powt_ciezar': p['powt_ciezar'],
+            'powt_wykres': p['powt_wykres'],
+        }
+        for p in progres
+    ]
 
     return render(request, 'tracker/statystyki.html', {
         'liczba_sesji': sesje.count(),
@@ -512,9 +541,9 @@ def statystyki(request):
         'wartosci_wykresu': [d['liczba_cwiczen'] for d in ostatnie_dni],
         'cwiczenia_do_progresu': cwiczenia_do_progresu,
         'wybrane_cwiczenie': wybrane,
-        'progres_etykiety': [p['data'].isoformat() for p in progres],
-        'progres_ciezar': [p['maks_ciezar'] for p in progres],
-        'progres_1rm': [p['maks_1rm'] for p in progres],
+        'progres': progres_dane,
+        'zakresy_progresu': ZAKRESY_PROGRESU,
+        'wybrany_zakres': dni,
         'rekordy': rekordy_uzytkownika(request.user),
         'sredni_czas': formatuj_minuty(sredni_czas_treningu(request.user)),
     })

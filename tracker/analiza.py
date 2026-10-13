@@ -65,19 +65,36 @@ def rekordy_wpisow(sesja, wpisy):
     return wynik
 
 
-def progres_cwiczenia(uzytkownik, cwiczenie_id, limit=30):
-    dane = SeriaWpisu.objects.filter(
-        wpis__sesja__uzytkownik=uzytkownik, wpis__cwiczenie_id=cwiczenie_id
-    ).values_list('wpis__sesja__data', 'powtorzenia', 'ciezar').order_by('wpis__sesja__data')
+def progres_cwiczenia(uzytkownik, cwiczenie_id, od_daty=None):
+    serie = SeriaWpisu.objects.filter(
+        wpis__sesja__uzytkownik=uzytkownik, wpis__cwiczenie_id=cwiczenie_id)
+    if od_daty is not None:
+        serie = serie.filter(wpis__sesja__data__gte=od_daty)
+    dane = serie.values_list(
+        'wpis__sesja__data', 'powtorzenia', 'ciezar').order_by('wpis__sesja__data')
     po_dniach = {}
     for data, powtorzenia, ciezar in dane:
-        dzien = po_dniach.setdefault(data, {'maks_ciezar': 0.0, 'maks_1rm': 0.0})
-        dzien['maks_ciezar'] = max(dzien['maks_ciezar'], float(ciezar))
+        ciezar = float(ciezar)
+        dzien = po_dniach.setdefault(data, {
+            'data': data,
+            'ciezar': 0.0, 'powt_ciezar': 0,
+            'rm': None, 'powt_rm': None, 'ciezar_rm': None,
+            'powt_maks': 0,
+        })
+        dzien['powt_maks'] = max(dzien['powt_maks'], powtorzenia)
+        if ciezar > dzien['ciezar'] or (
+                ciezar == dzien['ciezar'] and powtorzenia > dzien['powt_ciezar']):
+            dzien['ciezar'] = ciezar
+            dzien['powt_ciezar'] = powtorzenia
         wartosc = szacowane_1rm(ciezar, powtorzenia)
-        if wartosc is not None:
-            dzien['maks_1rm'] = max(dzien['maks_1rm'], wartosc)
-    punkty = [{'data': data, **wartosci} for data, wartosci in po_dniach.items()]
-    return punkty[-limit:]
+        if wartosc and (dzien['rm'] is None or wartosc > dzien['rm']):
+            dzien['rm'] = wartosc
+            dzien['powt_rm'] = powtorzenia
+            dzien['ciezar_rm'] = ciezar
+    for dzien in po_dniach.values():
+        dzien['powt_wykres'] = (
+            dzien['powt_rm'] if dzien['powt_rm'] is not None else dzien['powt_maks'])
+    return list(po_dniach.values())
 
 
 def rekordy_uzytkownika(uzytkownik):

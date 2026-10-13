@@ -551,7 +551,10 @@ class AnalizaTest(HistoriaTestBase):
         self.sesja_z(date(2025, 1, 8), ((5, 60),))
         punkty = progres_cwiczenia(self.ania, self.publiczne.pk)
         self.assertEqual([p['data'] for p in punkty], [date(2025, 1, 1), date(2025, 1, 8)])
-        self.assertEqual(punkty[0]['maks_ciezar'], 55.0)
+        self.assertEqual(punkty[0]['ciezar'], 55.0)
+        self.assertEqual(punkty[0]['powt_ciezar'], 6)
+        self.assertEqual((punkty[0]['powt_rm'], punkty[0]['ciezar_rm']), (6, 55.0))
+        self.assertEqual(punkty[0]['powt_wykres'], 6)
 
     def test_rekordy_uzytkownika_zwracaja_najlepsza_serie(self):
         self.sesja_z(date(2025, 1, 1), ((8, 50), (3, 70)))
@@ -671,7 +674,7 @@ class StatystykiProgresTest(HistoriaTestBase):
         self.sesja_z(date(2025, 1, 9), ((8, 20),), cwiczenie=rzadkie)
         odpowiedz = self.client.get(reverse('statystyki'))
         self.assertEqual(odpowiedz.context['wybrane_cwiczenie'], self.publiczne)
-        self.assertEqual(odpowiedz.context['progres_ciezar'], [50.0, 55.0])
+        self.assertEqual([p['ciezar'] for p in odpowiedz.context['progres']], [50.0, 55.0])
 
     def test_wybor_cwiczenia_z_adresu(self):
         rzadkie = Cwiczenie.objects.create(nazwa='Rzadkie', kategoria='inne')
@@ -759,3 +762,52 @@ class CzasTreninguTest(BazowyTest):
         self.assertIsNone(sredni_czas_treningu(self.ania))
         odpowiedz = self.client.get(reverse('statystyki'))
         self.assertEqual(odpowiedz.context['sredni_czas'], '')
+
+
+class WykresProgresuTest(HistoriaTestBase):
+    def test_okres_ogranicza_dane(self):
+        dzis = date.today()
+        self.sesja_z(dzis - timedelta(days=200), ((8, 50),))
+        self.sesja_z(dzis - timedelta(days=40), ((8, 55),))
+        self.sesja_z(dzis - timedelta(days=5), ((8, 60),))
+        wszystkie = self.client.get(reverse('statystyki'))
+        self.assertEqual(len(wszystkie.context['progres']), 3)
+        for dni, oczekiwane in ((30, 1), (90, 2), (180, 2), (365, 3)):
+            with self.subTest(dni=dni):
+                odpowiedz = self.client.get(reverse('statystyki'), {'dni': dni})
+                self.assertEqual(len(odpowiedz.context['progres']), oczekiwane)
+                self.assertEqual(odpowiedz.context['wybrany_zakres'], dni)
+
+    def test_niepoprawny_okres_oznacza_caly_okres(self):
+        self.sesja_z(date(2020, 1, 1), ((8, 50),))
+        for wartosc in ('abc', '7', '-5'):
+            with self.subTest(wartosc=wartosc):
+                odpowiedz = self.client.get(reverse('statystyki'), {'dni': wartosc})
+                self.assertEqual(odpowiedz.context['wybrany_zakres'], 0)
+                self.assertEqual(len(odpowiedz.context['progres']), 1)
+
+    def test_punkt_zawiera_serie_bazowa_dla_1rm(self):
+        self.sesja_z(date(2025, 3, 1), ((12, 40), (5, 60), (3, 70)))
+        punkt = self.client.get(reverse('statystyki')).context['progres'][0]
+        self.assertEqual((punkt['powt_ciezar'], punkt['ciezar']), (3, 70.0))
+        self.assertEqual((punkt['powt_rm'], punkt['ciezar_rm']), (3, 70.0))
+        self.assertEqual(punkt['data'], '01.03.2025')
+
+    def test_cwiczenie_bez_ciezaru_pokazuje_powtorzenia(self):
+        sesja = SesjaTreningowa.objects.create(uzytkownik=self.ania, data=date(2025, 3, 1))
+        utworz_wpis(sesja, self.publiczne, serie=((15, 0), (12, 0)))
+        punkt = self.client.get(reverse('statystyki')).context['progres'][0]
+        self.assertIsNone(punkt['rm'])
+        self.assertEqual(punkt['powt_wykres'], 15)
+
+    def test_tabela_i_wykres_sa_na_stronie(self):
+        self.sesja_z(date(2025, 3, 1), ((8, 50),))
+        odpowiedz = self.client.get(reverse('statystyki'))
+        self.assertContains(odpowiedz, 'id="wykresProgresu"')
+        self.assertContains(odpowiedz, 'id="tabela-progresu"')
+        self.assertContains(odpowiedz, 'id="progres-dane"')
+
+    def test_pusty_okres_pokazuje_komunikat(self):
+        self.sesja_z(date(2020, 1, 1), ((8, 50),))
+        odpowiedz = self.client.get(reverse('statystyki'), {'dni': 30})
+        self.assertContains(odpowiedz, 'Brak danych dla tego ćwiczenia w wybranym okresie.')

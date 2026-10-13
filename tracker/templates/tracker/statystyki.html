@@ -91,21 +91,46 @@
 <div class="card mb-4">
     <div class="card-header bg-dark text-white d-flex flex-wrap justify-content-between align-items-center gap-2">
         <h5 class="mb-0">Progres w ćwiczeniu</h5>
-        <form method="get" class="d-flex gap-2">
-            <select name="cwiczenie" class="form-select form-select-sm" aria-label="Ćwiczenie" onchange="this.form.submit()">
+        <form method="get" class="d-flex flex-wrap gap-2">
+            <select name="cwiczenie" class="form-select form-select-sm w-auto" aria-label="Ćwiczenie" onchange="this.form.submit()">
                 {% for c in cwiczenia_do_progresu %}
                 <option value="{{ c.pk }}"{% if c.pk == wybrane_cwiczenie.pk %} selected{% endif %}>{{ c.nazwa }}</option>
+                {% endfor %}
+            </select>
+            <select name="dni" class="form-select form-select-sm w-auto" aria-label="Okres" onchange="this.form.submit()">
+                {% for wartosc, nazwa in zakresy_progresu %}
+                <option value="{{ wartosc }}"{% if wartosc == wybrany_zakres %} selected{% endif %}>{{ nazwa }}</option>
                 {% endfor %}
             </select>
             <noscript><button type="submit" class="btn btn-light btn-sm">Pokaż</button></noscript>
         </form>
     </div>
     <div class="card-body">
+        {% if progres %}
         <canvas id="wykresProgresu"></canvas>
-        <p class="text-muted small mt-2 mb-0">
-            Dla każdego dnia treningowego: największy użyty ciężar oraz szacowane 1RM (wzór Brzyckiego)
-            z najlepszej serii. Pokazuje ostatnie 30 dni treningowych.
+        <p class="text-muted small mt-2">
+            Niebieska linia to szacowane 1RM z najlepszej serii danego dnia, a szare słupki pokazują, ile powtórzeń
+            miała ta seria. Czarna linia to największy użyty ciężar. Najechanie na punkt pokazuje dokładną serię.
+            Szacunek jest najdokładniejszy dla serii do około 10 powtórzeń.
         </p>
+
+        <h6 class="mt-4">Dane, na podstawie których powstał wykres</h6>
+        <div class="table-responsive" style="max-height: 320px; overflow-y: auto;">
+            <table class="table table-sm table-striped mb-0">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Seria bazowa dla 1RM</th>
+                        <th>Szacowane 1RM</th>
+                        <th>Najcięższa seria</th>
+                    </tr>
+                </thead>
+                <tbody id="tabela-progresu"></tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">Brak danych dla tego ćwiczenia w wybranym okresie.</p>
+        {% endif %}
     </div>
 </div>
 {% endif %}
@@ -174,37 +199,90 @@
 </script>
 {% endif %}
 
-{% if wybrane_cwiczenie %}
-{{ progres_etykiety|json_script:"progres-etykiety" }}
-{{ progres_ciezar|json_script:"progres-ciezar" }}
-{{ progres_1rm|json_script:"progres-1rm" }}
+{% if wybrane_cwiczenie and progres %}
+{{ progres|json_script:"progres-dane" }}
 <script>
-    new Chart(document.getElementById('wykresProgresu'), {
-        type: 'line',
-        data: {
-            labels: JSON.parse(document.getElementById('progres-etykiety').textContent),
-            datasets: [
-                {
-                    label: 'Największy ciężar (kg)',
-                    data: JSON.parse(document.getElementById('progres-ciezar').textContent),
-                    borderColor: '#212529',
-                    backgroundColor: '#212529',
-                    tension: 0.2,
+    (function () {
+        const dane = JSON.parse(document.getElementById('progres-dane').textContent);
+        const liczba = function (wartosc) {
+            return wartosc === null ? '' : String(Math.round(wartosc * 100) / 100).replace('.', ',');
+        };
+
+        const wiersze = dane.slice().reverse().map(function (d) {
+            const bazowa = d.powt_rm === null ? '-' : d.powt_rm + ' x ' + liczba(d.ciezar_rm) + ' kg';
+            const rm = d.rm === null ? '-' : liczba(d.rm) + ' kg';
+            return '<tr><td>' + d.data + '</td><td>' + bazowa + '</td><td>' + rm + '</td><td>' +
+                d.powt_ciezar + ' x ' + liczba(d.ciezar) + ' kg</td></tr>';
+        });
+        document.getElementById('tabela-progresu').innerHTML = wiersze.join('');
+
+        new Chart(document.getElementById('wykresProgresu'), {
+            data: {
+                labels: dane.map(function (d) { return d.etykieta; }),
+                datasets: [
+                    {
+                        type: 'line',
+                        label: 'Szacowane 1RM (kg)',
+                        data: dane.map(function (d) { return d.rm; }),
+                        borderColor: '#0d6efd',
+                        backgroundColor: '#0d6efd',
+                        yAxisID: 'y',
+                        spanGaps: true,
+                        tension: 0.2,
+                        order: 1,
+                    },
+                    {
+                        type: 'line',
+                        label: 'Największy ciężar (kg)',
+                        data: dane.map(function (d) { return d.ciezar; }),
+                        borderColor: '#212529',
+                        backgroundColor: '#212529',
+                        yAxisID: 'y',
+                        tension: 0.2,
+                        order: 2,
+                    },
+                    {
+                        type: 'bar',
+                        label: 'Powtórzenia w najlepszej serii',
+                        data: dane.map(function (d) { return d.powt_wykres; }),
+                        backgroundColor: 'rgba(108, 117, 125, 0.35)',
+                        yAxisID: 'y2',
+                        order: 3,
+                    },
+                ]
+            },
+            options: {
+                responsive: true,
+                interaction: { mode: 'index', intersect: false },
+                scales: {
+                    y: { beginAtZero: true, title: { display: true, text: 'kg' } },
+                    y2: {
+                        position: 'right',
+                        beginAtZero: true,
+                        grid: { drawOnChartArea: false },
+                        title: { display: true, text: 'powtórzenia' },
+                        ticks: { stepSize: 1 },
+                    },
                 },
-                {
-                    label: 'Szacowane 1RM (kg)',
-                    data: JSON.parse(document.getElementById('progres-1rm').textContent),
-                    borderColor: '#0d6efd',
-                    backgroundColor: '#0d6efd',
-                    tension: 0.2,
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            scales: { y: { beginAtZero: true } }
-        }
-    });
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            title: function (elementy) { return dane[elementy[0].dataIndex].data; },
+                            afterBody: function (elementy) {
+                                const d = dane[elementy[0].dataIndex];
+                                const linie = [];
+                                if (d.powt_rm !== null) {
+                                    linie.push('Seria bazowa 1RM: ' + d.powt_rm + ' x ' + liczba(d.ciezar_rm) + ' kg');
+                                }
+                                linie.push('Najcięższa seria: ' + d.powt_ciezar + ' x ' + liczba(d.ciezar) + ' kg');
+                                return linie;
+                            },
+                        },
+                    },
+                },
+            }
+        });
+    })();
 </script>
 {% endif %}
 {% endblock %}
