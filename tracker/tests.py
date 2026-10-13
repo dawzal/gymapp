@@ -804,7 +804,7 @@ class WykresProgresuTest(HistoriaTestBase):
         self.sesja_z(date(2025, 3, 1), ((8, 50),))
         odpowiedz = self.client.get(reverse('statystyki'))
         self.assertContains(odpowiedz, 'id="wykresProgresu"')
-        self.assertContains(odpowiedz, 'id="wykresPowtorzen"')
+        self.assertNotContains(odpowiedz, 'wykresPowtorzen')
         self.assertContains(odpowiedz, 'id="tabela-progresu"')
         self.assertContains(odpowiedz, 'id="progres-dane"')
 
