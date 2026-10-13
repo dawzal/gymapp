@@ -1,7 +1,6 @@
 from django import forms
 from django.forms import inlineformset_factory
 
-from .analiza import ostatnie_serie
 from .models import (
     Cwiczenie, CwiczeniePlanu, PlanTreningowy, SeriaWpisu, SesjaTreningowa, WpisDziennika,
 )
@@ -155,57 +154,25 @@ class NowyWpisForm(forms.Form):
         label='Ćwiczenie',
         widget=forms.Select(attrs={'class': 'form-select'}),
     )
-    liczba_serii = forms.IntegerField(
-        label='Liczba serii', min_value=1, max_value=20, initial=3,
-        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'max': 20}),
-    )
-    powtorzenia = forms.IntegerField(
-        label='Powtórzenia w serii', min_value=1, max_value=100, initial=10,
-        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'max': 100}),
-    )
-    ciezar = forms.DecimalField(
-        label='Ciężar (kg)', min_value=0, max_digits=6, decimal_places=2, initial=0,
-        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'step': '0.5'}),
-    )
-    jak_ostatnio = forms.BooleanField(
-        label='Jeśli ćwiczenie było już wykonywane, ustaw serie jak ostatnio',
-        required=False, initial=True,
-        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-    )
-    notatki = forms.CharField(
-        label='Notatki', required=False,
-        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
-    )
 
     def __init__(self, *args, uzytkownik=None, **kwargs):
         super().__init__(*args, **kwargs)
         ogranicz_cwiczenia(self, uzytkownik)
 
     def zapisz(self, sesja):
-        dane = self.cleaned_data
-        wpis = WpisDziennika.objects.create(
-            sesja=sesja, cwiczenie=dane['cwiczenie'], notatki=dane['notatki'])
-        wzorce = [(dane['powtorzenia'], dane['ciezar'])] * dane['liczba_serii']
-        if dane['jak_ostatnio']:
-            ostatnio = ostatnie_serie(sesja, [dane['cwiczenie'].pk]).get(dane['cwiczenie'].pk)
-            if ostatnio:
-                wzorce = [(s.powtorzenia, s.ciezar) for s in ostatnio['serie']]
-        SeriaWpisu.objects.bulk_create([
-            SeriaWpisu(wpis=wpis, powtorzenia=powtorzenia, ciezar=ciezar)
-            for powtorzenia, ciezar in wzorce
-        ])
-        return wpis
+        return WpisDziennika.objects.create(sesja=sesja, cwiczenie=self.cleaned_data['cwiczenie'])
 
 
 class SeriaForm(forms.ModelForm):
     class Meta:
         model = SeriaWpisu
-        fields = ['powtorzenia', 'ciezar']
+        fields = ['powtorzenia', 'ciezar', 'wykonana']
         widgets = {
             'powtorzenia': forms.NumberInput(attrs={
                 'class': 'form-control form-control-sm', 'min': 1, 'max': 100}),
             'ciezar': forms.NumberInput(attrs={
                 'class': 'form-control form-control-sm', 'min': 0, 'step': '0.5'}),
+            'wykonana': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
 
     def __init__(self, *args, **kwargs):

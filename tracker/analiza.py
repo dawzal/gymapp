@@ -13,6 +13,10 @@ def szacowane_1rm(ciezar, powtorzenia):
     return oblicz_1rm(float(ciezar), powtorzenia)
 
 
+def wykonane_serie():
+    return SeriaWpisu.objects.filter(wykonana=True)
+
+
 def wczesniejsze_serie(sesja):
     return Q(wpis__sesja__uzytkownik=sesja.uzytkownik) & (
         Q(wpis__sesja__data__lt=sesja.data)
@@ -22,7 +26,7 @@ def wczesniejsze_serie(sesja):
 
 def ostatnie_serie(sesja, cwiczenia_ids):
     serie = (
-        SeriaWpisu.objects
+        wykonane_serie()
         .filter(wczesniejsze_serie(sesja), wpis__cwiczenie_id__in=list(cwiczenia_ids))
         .select_related('wpis__sesja')
         .order_by('-wpis__sesja__data', '-wpis__sesja_id', '-wpis_id', 'pk')
@@ -41,10 +45,26 @@ def ostatnie_serie(sesja, cwiczenia_ids):
     return wynik
 
 
+def najlepsze_dla_cwiczen(uzytkownik, cwiczenia_ids):
+    dane = wykonane_serie().filter(
+        wpis__sesja__uzytkownik=uzytkownik, wpis__cwiczenie_id__in=list(cwiczenia_ids)
+    ).values_list('wpis__cwiczenie_id', 'wpis__sesja__data', 'powtorzenia', 'ciezar')
+    wynik = {}
+    for cwiczenie_id, data, powtorzenia, ciezar in dane:
+        pozycja = wynik.setdefault(cwiczenie_id, {'rm': None, 'maks_powtorzen': 0})
+        pozycja['maks_powtorzen'] = max(pozycja['maks_powtorzen'], powtorzenia)
+        wartosc = szacowane_1rm(ciezar, powtorzenia)
+        if wartosc and (pozycja['rm'] is None or wartosc > pozycja['rm']['rm']):
+            pozycja['rm'] = {
+                'rm': wartosc, 'powtorzenia': powtorzenia, 'ciezar': ciezar, 'data': data,
+            }
+    return wynik
+
+
 def rekordy_wpisow(sesja, wpisy):
     cwiczenia_ids = {wpis.cwiczenie_id for wpis in wpisy}
     poprzednie = {}
-    historia = SeriaWpisu.objects.filter(
+    historia = wykonane_serie().filter(
         wczesniejsze_serie(sesja), wpis__cwiczenie_id__in=cwiczenia_ids
     ).values_list('wpis__cwiczenie_id', 'powtorzenia', 'ciezar')
     for cwiczenie_id, powtorzenia, ciezar in historia:
@@ -57,7 +77,10 @@ def rekordy_wpisow(sesja, wpisy):
         if not dotychczasowy:
             continue
         obecny = max(
-            (szacowane_1rm(s.ciezar, s.powtorzenia) or 0 for s in wpis.serie.all()),
+            (
+                szacowane_1rm(s.ciezar, s.powtorzenia) or 0
+                for s in wpis.serie.all() if s.wykonana
+            ),
             default=0,
         )
         if obecny > dotychczasowy:
@@ -66,7 +89,7 @@ def rekordy_wpisow(sesja, wpisy):
 
 
 def progres_cwiczenia(uzytkownik, cwiczenie_id, od_daty=None):
-    serie = SeriaWpisu.objects.filter(
+    serie = wykonane_serie().filter(
         wpis__sesja__uzytkownik=uzytkownik, wpis__cwiczenie_id=cwiczenie_id)
     if od_daty is not None:
         serie = serie.filter(wpis__sesja__data__gte=od_daty)
@@ -99,7 +122,7 @@ def progres_cwiczenia(uzytkownik, cwiczenie_id, od_daty=None):
 
 def rekordy_uzytkownika(uzytkownik):
     najlepsze = {}
-    dane = SeriaWpisu.objects.filter(wpis__sesja__uzytkownik=uzytkownik).values_list(
+    dane = wykonane_serie().filter(wpis__sesja__uzytkownik=uzytkownik).values_list(
         'wpis__cwiczenie_id', 'wpis__cwiczenie__nazwa', 'wpis__sesja__data',
         'powtorzenia', 'ciezar')
     for cwiczenie_id, nazwa, data, powtorzenia, ciezar in dane:
@@ -115,14 +138,15 @@ def rekordy_uzytkownika(uzytkownik):
 
 
 def podsumowanie_sesji(sesja):
-    serie = list(SeriaWpisu.objects.filter(wpis__sesja=sesja))
-    podsumowanie = {
+    wszystkie = list(SeriaWpisu.objects.filter(wpis__sesja=sesja))
+    wykonane = [s for s in wszystkie if s.wykonana]
+    return {
         'cwiczenia': sesja.wpisy.count(),
-        'serie': len(serie),
-        'powtorzenia': sum(s.powtorzenia for s in serie),
-        'objetosc': sum(s.powtorzenia * s.ciezar for s in serie),
+        'serie': len(wykonane),
+        'serie_razem': len(wszystkie),
+        'powtorzenia': sum(s.powtorzenia for s in wykonane),
+        'objetosc': sum(s.powtorzenia * s.ciezar for s in wykonane),
     }
-    return podsumowanie
 
 
 def sredni_czas_treningu(uzytkownik):

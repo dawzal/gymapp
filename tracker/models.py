@@ -154,6 +154,7 @@ class SeriaWpisu(models.Model):
     powtorzenia = models.PositiveIntegerField(validators=[MinValueValidator(1)])
     ciezar = models.DecimalField(
         max_digits=6, decimal_places=2, default=0, validators=[MinValueValidator(0)])
+    wykonana = models.BooleanField(default=True)
 
     def __str__(self):
         return f"{self.powtorzenia} x {self.ciezar} kg"

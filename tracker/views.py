@@ -13,8 +13,8 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .analiza import (
-    oblicz_1rm, ostatnie_serie, podsumowanie_sesji, progres_cwiczenia, rekordy_uzytkownika,
-    rekordy_wpisow, sredni_czas_treningu,
+    najlepsze_dla_cwiczen, oblicz_1rm, ostatnie_serie, podsumowanie_sesji, progres_cwiczenia,
+    rekordy_uzytkownika, rekordy_wpisow, sredni_czas_treningu,
 )
 from .forms import (
     CwiczenieForm, CwiczeniePlanuForm, NowyWpisForm, PlanTreningowyForm, SeriaFormSet,
@@ -274,7 +274,8 @@ def rozpocznij_trening(request, plan_pk):
             if not ciezar and c.cwiczenie_id in ostatnio:
                 ciezar = max(s.ciezar for s in ostatnio[c.cwiczenie_id]['serie'])
             serie.extend(
-                SeriaWpisu(wpis=wpis, powtorzenia=c.powtorzenia, ciezar=ciezar)
+                SeriaWpisu(
+                    wpis=wpis, powtorzenia=c.powtorzenia, ciezar=ciezar, wykonana=False)
                 for _ in range(c.serie)
             )
         SeriaWpisu.objects.bulk_create(serie)
@@ -308,8 +309,10 @@ def dodaj_sesje(request):
 
 def strona_sesji(request, sesja, formularz, bledny_zestaw=None):
     wpisy = list(sesja.wpisy.select_related('cwiczenie').prefetch_related('serie'))
-    ostatnio = ostatnie_serie(sesja, [wpis.cwiczenie_id for wpis in wpisy])
+    cwiczenia_ids = [wpis.cwiczenie_id for wpis in wpisy]
+    ostatnio = ostatnie_serie(sesja, cwiczenia_ids)
     rekordy = rekordy_wpisow(sesja, wpisy)
+    najlepsze = najlepsze_dla_cwiczen(sesja.uzytkownik, cwiczenia_ids)
     karty = []
     for wpis in wpisy:
         if bledny_zestaw is not None and bledny_zestaw.instance.pk == wpis.pk:
@@ -321,6 +324,7 @@ def strona_sesji(request, sesja, formularz, bledny_zestaw=None):
             'zestaw': zestaw,
             'ostatnio': ostatnio.get(wpis.cwiczenie_id),
             'rekord': rekordy.get(wpis.pk),
+            'najlepszy': najlepsze.get(wpis.cwiczenie_id),
         })
     return render(request, 'tracker/szczegoly_sesji.html', {
         'sesja': sesja,
@@ -336,9 +340,9 @@ def szczegoly_sesji(request, pk):
     sesja = get_object_or_404(SesjaTreningowa, pk=pk, uzytkownik=request.user)
     formularz = NowyWpisForm(request.POST or None, uzytkownik=request.user)
     if formularz.is_valid():
-        formularz.zapisz(sesja)
-        messages.success(request, 'Ćwiczenie dodane do sesji!')
-        return redirect('szczegoly_sesji', pk=sesja.pk)
+        wpis = formularz.zapisz(sesja)
+        messages.success(request, 'Ćwiczenie dodane. Uzupełnij serie poniżej.')
+        return redirect(f"{reverse('szczegoly_sesji', args=[sesja.pk])}#wpis-{wpis.pk}")
     return strona_sesji(request, sesja, formularz)
 
 
@@ -353,7 +357,7 @@ def zapisz_serie(request, pk):
     if zestaw.is_valid():
         zestaw.save()
         messages.success(request, f'Zapisano serie: {wpis.cwiczenie.nazwa}.')
-        return redirect('szczegoly_sesji', pk=wpis.sesja.pk)
+        return redirect(f"{reverse('szczegoly_sesji', args=[wpis.sesja.pk])}#wpis-{wpis.pk}")
     return strona_sesji(
         request, wpis.sesja, NowyWpisForm(uzytkownik=request.user), bledny_zestaw=zestaw)
 

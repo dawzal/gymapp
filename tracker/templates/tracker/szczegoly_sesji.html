@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load l10n %}
 
 {% block tytul %}{{ sesja.data }} - GymApp{% endblock %}
 
@@ -30,7 +31,7 @@
     <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
         <div class="d-flex flex-wrap gap-4">
             <div><div class="fs-4 fw-bold">{{ podsumowanie.cwiczenia }}</div><div class="text-muted small">ćwiczeń</div></div>
-            <div><div class="fs-4 fw-bold">{{ podsumowanie.serie }}</div><div class="text-muted small">serii</div></div>
+            <div><div class="fs-4 fw-bold">{{ podsumowanie.serie }}/{{ podsumowanie.serie_razem }}</div><div class="text-muted small">serii zrobionych</div></div>
             <div><div class="fs-4 fw-bold">{{ podsumowanie.powtorzenia }}</div><div class="text-muted small">powtórzeń</div></div>
             <div><div class="fs-4 fw-bold">{{ podsumowanie.objetosc|floatformat:"-1" }} kg</div><div class="text-muted small">objętość</div></div>
             {% if sesja.zakonczono and sesja.czas_trwania_tekst %}
@@ -63,7 +64,7 @@
     <div class="col-lg-8">
         {% for karta in karty %}
         {% with wpis=karta.wpis zestaw=karta.zestaw %}
-        <div class="card mb-3">
+        <div class="card mb-3" id="wpis-{{ wpis.pk }}">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <strong>
                     {{ wpis.cwiczenie.nazwa }}
@@ -80,12 +81,27 @@
                 </div>
             </div>
             <div class="card-body">
-                {% if karta.ostatnio %}
-                <p class="text-muted small mb-2">
-                    Ostatnio ({{ karta.ostatnio.data|date:"d.m.Y" }}):
-                    {% for s in karta.ostatnio.serie %}{{ s.powtorzenia }} x {{ s.ciezar|floatformat:"-2" }} kg{% if not forloop.last %}, {% endif %}{% endfor %}
-                </p>
-                {% endif %}
+                <div class="text-muted small mb-3">
+                    {% with rekord=karta.najlepszy.rm %}
+                    {% if rekord %}
+                    <div>
+                        Twój rekord: <strong class="text-body">{{ rekord.powtorzenia }} x {{ rekord.ciezar|floatformat:"-2" }} kg</strong>
+                        (szacowane 1RM {{ rekord.rm|floatformat:1 }} kg, {{ rekord.data|date:"d.m.Y" }})
+                    </div>
+                    {% elif karta.najlepszy %}
+                    <div>Twój rekord: <strong class="text-body">{{ karta.najlepszy.maks_powtorzen }} powtórzeń</strong></div>
+                    {% else %}
+                    <div>Brak wcześniejszych wyników w tym ćwiczeniu.</div>
+                    {% endif %}
+                    {% endwith %}
+                    {% if karta.ostatnio %}
+                    <div>
+                        Ostatnio ({{ karta.ostatnio.data|date:"d.m.Y" }}):
+                        {% for s in karta.ostatnio.serie %}{{ s.powtorzenia }} x {{ s.ciezar|floatformat:"-2" }} kg{% if not forloop.last %}, {% endif %}{% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+
                 <form method="post" action="{% url 'zapisz_serie' wpis.pk %}" data-formularz-serii>
                     {% csrf_token %}
                     {{ zestaw.management_form }}
@@ -99,7 +115,8 @@
                                     <th>Seria</th>
                                     <th>Powtórzenia</th>
                                     <th>Ciężar (kg)</th>
-                                    <th>Usuń</th>
+                                    <th>Zrobiona</th>
+                                    <th></th>
                                 </tr>
                             </thead>
                             <tbody id="serie-{{ zestaw.prefix }}">
@@ -115,6 +132,7 @@
                                         {{ form.ciezar }}
                                         {% for blad in form.ciezar.errors %}<div class="text-danger small">{{ blad }}</div>{% endfor %}
                                     </td>
+                                    <td>{{ form.wykonana }}</td>
                                     <td>
                                         <div class="d-none">{{ form.DELETE }}</div>
                                         <button type="button" class="btn btn-sm btn-outline-danger" data-przelacz-usuniecie>Usuń</button>
@@ -124,6 +142,11 @@
                             </tbody>
                         </table>
                     </div>
+                    {% if not zestaw.forms %}
+                    <p class="text-muted small" id="brak-{{ zestaw.prefix }}">
+                        Nie ma jeszcze serii. Dodaj je przyciskiem "+ Seria" w miarę wykonywania ćwiczenia.
+                    </p>
+                    {% endif %}
                     <template id="szablon-{{ zestaw.prefix }}">
                         <tr>
                             <td class="numer"></td>
@@ -132,20 +155,27 @@
                                 {{ zestaw.empty_form.powtorzenia }}
                             </td>
                             <td>{{ zestaw.empty_form.ciezar }}</td>
+                            <td>{{ zestaw.empty_form.wykonana }}</td>
                             <td><button type="button" class="btn-close" data-usun-wiersz aria-label="Usuń wiersz"></button></td>
                         </tr>
                     </template>
-                    <div class="d-flex gap-2 align-items-center">
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
                         <button type="button" class="btn btn-outline-dark btn-sm" data-dodaj-serie="{{ zestaw.prefix }}">+ Seria</button>
+                        {% if karta.ostatnio %}
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-jak-ostatnio="{{ zestaw.prefix }}"
+                            data-serie="[{% for s in karta.ostatnio.serie %}[{{ s.powtorzenia }},{{ s.ciezar|unlocalize }}]{% if not forloop.last %},{% endif %}{% endfor %}]">Wstaw jak ostatnio</button>
+                        {% endif %}
                         <button type="submit" class="btn btn-dark btn-sm">Zapisz serie</button>
-                        <span class="text-muted small">Zmiany i usunięcia zapisują się po kliknięciu "Zapisz serie".</span>
                     </div>
+                    <p class="text-muted small mt-2 mb-0">
+                        Zaznacz "Zrobiona" przy wykonanych seriach. Tylko takie serie liczą się do rekordów i statystyk.
+                    </p>
                 </form>
             </div>
         </div>
         {% endwith %}
         {% empty %}
-        <div class="alert alert-info">Brak ćwiczeń. Dodaj pierwsze po prawej!</div>
+        <div class="alert alert-info">Brak ćwiczeń. Wybierz pierwsze po prawej!</div>
         {% endfor %}
     </div>
 
@@ -183,8 +213,7 @@
                     {% csrf_token %}
                     {% include 'pola_formularza.html' %}
                     <p class="text-muted small">
-                        Zostanie utworzona podana liczba serii. Powtórzenia i ciężar każdej serii
-                        możesz potem zmienić osobno.
+                        Serie, powtórzenia i ciężar uzupełnisz na karcie ćwiczenia, kiedy będziesz wiedzieć, ile zrobiłeś.
                     </p>
                     <button type="submit" class="btn btn-dark w-100">Dodaj ćwiczenie</button>
                 </form>
@@ -194,21 +223,46 @@
 </div>
 
 <script>
+    function pole(wiersz, nazwa) {
+        return wiersz.querySelector('input[name$="-' + nazwa + '"]');
+    }
+    function dodajWiersz(prefiks, powtorzenia, ciezar) {
+        const licznik = document.getElementById('id_' + prefiks + '-TOTAL_FORMS');
+        const szablon = document.getElementById('szablon-' + prefiks).innerHTML;
+        const tabela = document.getElementById('serie-' + prefiks);
+        tabela.insertAdjacentHTML('beforeend', szablon.replaceAll('__prefix__', licznik.value));
+        licznik.value = parseInt(licznik.value, 10) + 1;
+        const wiersz = tabela.lastElementChild;
+        const poprzedni = wiersz.previousElementSibling;
+        if (powtorzenia === undefined && poprzedni) {
+            pole(wiersz, 'powtorzenia').value = pole(poprzedni, 'powtorzenia').value;
+            pole(wiersz, 'ciezar').value = pole(poprzedni, 'ciezar').value;
+        } else if (powtorzenia !== undefined) {
+            pole(wiersz, 'powtorzenia').value = powtorzenia;
+            pole(wiersz, 'ciezar').value = ciezar;
+        }
+        const podpowiedz = document.getElementById('brak-' + prefiks);
+        if (podpowiedz) { podpowiedz.remove(); }
+        return wiersz;
+    }
     document.querySelectorAll('[data-dodaj-serie]').forEach(function (przycisk) {
         przycisk.addEventListener('click', function () {
-            const prefiks = przycisk.dataset.dodajSerie;
-            const licznik = document.getElementById('id_' + prefiks + '-TOTAL_FORMS');
-            const szablon = document.getElementById('szablon-' + prefiks).innerHTML;
-            document.getElementById('serie-' + prefiks).insertAdjacentHTML(
-                'beforeend', szablon.replaceAll('__prefix__', licznik.value));
-            licznik.value = parseInt(licznik.value, 10) + 1;
+            dodajWiersz(przycisk.dataset.dodajSerie);
         });
     });
+    document.querySelectorAll('[data-jak-ostatnio]').forEach(function (przycisk) {
+        przycisk.addEventListener('click', function () {
+            JSON.parse(przycisk.dataset.serie).forEach(function (seria) {
+                dodajWiersz(przycisk.dataset.jakOstatnio, seria[0], seria[1]);
+            });
+        });
+    });
+
     function ustawStanUsuniecia(wiersz) {
-        const pole = wiersz.querySelector('input[type="checkbox"]');
+        const zaznaczenie = pole(wiersz, 'DELETE');
         const przycisk = wiersz.querySelector('[data-przelacz-usuniecie]');
-        wiersz.classList.toggle('seria-usunieta', pole.checked);
-        przycisk.textContent = pole.checked ? 'Przywróć' : 'Usuń';
+        wiersz.classList.toggle('seria-usunieta', zaznaczenie.checked);
+        przycisk.textContent = zaznaczenie.checked ? 'Przywróć' : 'Usuń';
     }
     document.querySelectorAll('[data-przelacz-usuniecie]').forEach(function (przycisk) {
         ustawStanUsuniecia(przycisk.closest('tr'));
@@ -219,8 +273,8 @@
         }
         if (zdarzenie.target.matches('[data-przelacz-usuniecie]')) {
             const wiersz = zdarzenie.target.closest('tr');
-            const pole = wiersz.querySelector('input[type="checkbox"]');
-            pole.checked = !pole.checked;
+            const zaznaczenie = pole(wiersz, 'DELETE');
+            zaznaczenie.checked = !zaznaczenie.checked;
             ustawStanUsuniecia(wiersz);
         }
     });
