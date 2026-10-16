@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+
+{% block tytul %}Asystent treningowy - GymApp{% endblock %}
+
+{% block zawartosc %}
+<style>
+    .okno-czatu { height: 55vh; min-height: 320px; overflow-y: auto; background: #f8f9fa; }
+    .babelek { max-width: 85%; padding: .6rem .9rem; border-radius: 1rem; margin-bottom: .6rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .babelek-user { background: #212529; color: #fff; margin-left: auto; border-bottom-right-radius: .25rem; }
+    .babelek-assistant { background: #fff; border: 1px solid #dee2e6; margin-right: auto; border-bottom-left-radius: .25rem; }
+</style>
+
+<div class="row justify-content-center">
+    <div class="col-lg-9">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="mb-0">Asystent treningowy</h2>
+            <form method="post" action="{% url 'czat_wyczysc' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-secondary btn-sm"{% if not historia %} disabled{% endif %}>Wyczyść rozmowę</button>
+            </form>
+        </div>
+
+        {% if not skonfigurowany %}
+        <div class="alert alert-warning">
+            Czat nie jest jeszcze skonfigurowany. Ustaw zmienną środowiskową <code>ANTHROPIC_API_KEY</code>
+            i uruchom serwer ponownie.
+        </div>
+        {% endif %}
+
+        <p class="text-muted small">
+            Odpowiedzi generuje model AI, więc mogą zawierać błędy. To nie jest porada medyczna.
+            Przy bólu lub urazie skonsultuj się z lekarzem lub fizjoterapeutą.
+        </p>
+
+        <div class="card">
+            <div id="okno-czatu" class="card-body okno-czatu">
+                {% if not historia %}
+                <div class="babelek babelek-assistant" id="powitanie">Cześć! Jestem asystentem treningowym. Zapytaj mnie o technikę ćwiczeń, planowanie treningu, dobór ciężaru, progresję lub regenerację.</div>
+                {% endif %}
+                {% for wiadomosc in historia %}
+                <div class="babelek babelek-{{ wiadomosc.rola }}">{{ wiadomosc.tresc }}</div>
+                {% endfor %}
+            </div>
+            <div class="card-footer">
+                <div class="d-flex flex-wrap gap-2 mb-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-podpowiedz="Jak poprawić technikę martwego ciągu?">Technika martwego ciągu</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-podpowiedz="Jak dobrać ciężar i liczbę powtórzeń do celu: masa mięśniowa?">Ciężar i powtórzenia</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-podpowiedz="Co zrobić, gdy przestałem robić postępy w wyciskaniu?">Brak postępów</button>
+                </div>
+                <form id="formularz-czatu">
+                    <div class="mb-2">
+                        <textarea id="pole-tresci" class="form-control" rows="2" maxlength="{{ maks_znakow }}"
+                            placeholder="Napisz pytanie... (Enter wysyła, Shift+Enter nowa linia)"{% if not skonfigurowany %} disabled{% endif %}></textarea>
+                    </div>
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="uzyj-danych">
+                            <label class="form-check-label small" for="uzyj-danych">
+                                Uwzględnij moje ostatnie treningi i rekordy (zostaną wysłane do dostawcy AI)
+                            </label>
+                        </div>
+                        <div class="d-flex align-items-center gap-3">
+                            <span class="text-muted small">Pozostało dziś: <span id="pozostalo">{{ pozostalo }}</span></span>
+                            <button type="submit" id="przycisk-wyslij" class="btn btn-dark"{% if not skonfigurowany %} disabled{% endif %}>Wyślij</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const okno = document.getElementById('okno-czatu');
+        const formularz = document.getElementById('formularz-czatu');
+        const pole = document.getElementById('pole-tresci');
+        const przycisk = document.getElementById('przycisk-wyslij');
+        const uzyjDanych = document.getElementById('uzyj-danych');
+        const pozostalo = document.getElementById('pozostalo');
+
+        function dodaj(rola, tekst) {
+            const powitanie = document.getElementById('powitanie');
+            if (powitanie && rola === 'user') { powitanie.remove(); }
+            const babelek = document.createElement('div');
+            babelek.className = 'babelek babelek-' + rola;
+            babelek.textContent = tekst;
+            okno.appendChild(babelek);
+            okno.scrollTop = okno.scrollHeight;
+            return babelek;
+        }
+        okno.scrollTop = okno.scrollHeight;
+
+        document.querySelectorAll('[data-podpowiedz]').forEach(function (przyciskPodpowiedzi) {
+            przyciskPodpowiedzi.addEventListener('click', function () {
+                pole.value = przyciskPodpowiedzi.dataset.podpowiedz;
+                pole.focus();
+            });
+        });
+
+        pole.addEventListener('keydown', function (zdarzenie) {
+            if (zdarzenie.key === 'Enter' && !zdarzenie.shiftKey) {
+                zdarzenie.preventDefault();
+                formularz.requestSubmit();
+            }
+        });
+
+        formularz.addEventListener('submit', async function (zdarzenie) {
+            zdarzenie.preventDefault();
+            const tresc = pole.value.trim();
+            if (!tresc || przycisk.disabled) { return; }
+            dodaj('user', tresc);
+            pole.value = '';
+            const oczekiwanie = dodaj('assistant', 'Asystent pisze...');
+            oczekiwanie.classList.add('text-muted');
+            przycisk.disabled = true;
+            try {
+                const odpowiedz = await fetch('{% url "czat_wyslij" %}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                    body: JSON.stringify({ tresc: tresc, uzyj_danych: uzyjDanych.checked }),
+                });
+                const dane = await odpowiedz.json();
+                oczekiwanie.classList.remove('text-muted');
+                if (odpowiedz.ok) {
+                    oczekiwanie.textContent = dane.odpowiedz;
+                    pozostalo.textContent = dane.pozostalo;
+                } else {
+                    oczekiwanie.textContent = dane.blad || 'Wystąpił błąd. Spróbuj ponownie.';
+                    oczekiwanie.classList.add('text-danger');
+                    pole.value = tresc;
+                }
+            } catch (blad) {
+                oczekiwanie.classList.remove('text-muted');
+                oczekiwanie.classList.add('text-danger');
+                oczekiwanie.textContent = 'Brak połączenia z serwerem. Spróbuj ponownie.';
+                pole.value = tresc;
+            } finally {
+                przycisk.disabled = false;
+                okno.scrollTop = okno.scrollHeight;
+                pole.focus();
+            }
+        });
+    })();
+</script>
+{% endblock %}

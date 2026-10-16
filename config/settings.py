@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'tracker',
     "accounts",
+    'czat',
 ]
 
 MIDDLEWARE = [
@@ -139,3 +140,9 @@ LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'logowanie'
 
 MESSAGE_TAGS = {message_constants.ERROR: 'danger'}
+
+ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
+CZAT_MODEL = os.environ.get('CZAT_MODEL', 'claude-opus-5-5')
+CZAT_DZIENNY_LIMIT = int(os.environ.get('CZAT_DZIENNY_LIMIT', '30'))
+CZAT_MAKS_ZNAKOW = 1000
+CZAT_HISTORIA = 20
