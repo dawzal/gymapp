@@ -898,3 +898,30 @@ class WykonaneISerieZaplanowaneTest(HistoriaTestBase):
         WpisDziennika.objects.create(sesja=biezaca, cwiczenie=self.publiczne)
         odpowiedz = self.client.get(reverse('szczegoly_sesji', args=[biezaca.pk]))
         self.assertContains(odpowiedz, 'Brak wcześniejszych wyników')
+
+
+class ZakladkiPlanowTest(BazowyTest):
+    def test_gotowe_plany_nie_sa_w_glownym_menu(self):
+        odpowiedz = self.client.get(reverse('dashboard'))
+        self.assertNotContains(
+            odpowiedz, '<a class="nav-link" href="' + reverse('gotowe_plany') + '">')
+        self.assertContains(odpowiedz, '<a class="nav-link" href="' + reverse('lista_planow') + '">')
+
+    def test_lista_planow_ma_zakladki_z_aktywna_pierwsza(self):
+        odpowiedz = self.client.get(reverse('lista_planow'))
+        self.assertContains(
+            odpowiedz,
+            '<a class="nav-link active" href="' + reverse('lista_planow') + '">Moje plany</a>')
+        self.assertContains(
+            odpowiedz,
+            '<a class="nav-link" href="' + reverse('gotowe_plany') + '">Gotowe plany</a>')
+
+    def test_gotowe_plany_maja_zakladki_z_aktywna_druga(self):
+        odpowiedz = self.client.get(reverse('gotowe_plany'))
+        self.assertContains(
+            odpowiedz,
+            '<a class="nav-link active" href="' + reverse('gotowe_plany') + '">Gotowe plany</a>')
+        self.assertContains(
+            odpowiedz,
+            '<a class="nav-link" href="' + reverse('lista_planow') + '">Moje plany</a>')
+        self.assertContains(odpowiedz, reverse('dodaj_plan'))

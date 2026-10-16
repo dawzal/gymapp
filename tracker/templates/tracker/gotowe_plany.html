@@ -3,10 +3,13 @@
 {% block tytul %}Gotowe plany - GymApp{% endblock %}
 
 {% block zawartosc %}
-<div class="d-flex justify-content-between align-items-center mb-2">
-    <h2>Gotowe plany treningowe</h2>
-    <a href="{% url 'lista_planow' %}" class="btn btn-outline-secondary">Moje plany</a>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Plany treningowe</h2>
+    <a href="{% url 'dodaj_plan' %}" class="btn btn-dark">+ Nowy plan</a>
 </div>
+
+{% include 'tracker/_zakladki_planow.html' with aktywna='gotowe' %}
+
 <p class="text-muted mb-4">
     Nie wiesz, od czego zacząć? Wybierz gotowy plan i dodaj go do swoich planów.
     Dostaniesz własną kopię, którą możesz dowolnie zmieniać. Oryginał pozostaje bez zmian.

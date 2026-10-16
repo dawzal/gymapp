@@ -3,15 +3,13 @@
 {% block tytul %}Plany treningowe - GymApp{% endblock %}
 
 {% block zawartosc %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-3">
     <h2>Plany treningowe</h2>
-    <div class="d-flex gap-2">
-        <a href="{% url 'gotowe_plany' %}" class="btn btn-outline-dark">Gotowe plany</a>
-        <a href="{% url 'dodaj_plan' %}" class="btn btn-dark">+ Nowy plan</a>
-    </div>
+    <a href="{% url 'dodaj_plan' %}" class="btn btn-dark">+ Nowy plan</a>
 </div>
 
-<h4>Moje plany</h4>
+{% include 'tracker/_zakladki_planow.html' with aktywna='moje' %}
+
 {% if moje_plany %}
 <div class="row mb-4">
     {% for plan in moje_plany %}
