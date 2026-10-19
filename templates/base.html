@@ -13,11 +13,18 @@
     <nav class="navbar navbar-expand-xl navbar-dark bg-dark">
         <div class="container">
             <a class="navbar-brand fw-bold" href="{% url 'dashboard' %}">GymApp</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMenu">
-                <span class="navbar-toggler-icon"></span>
-            </button>
+            {% if request.user.is_authenticated %}
+            <div class="d-flex align-items-center gap-2 ms-auto order-xl-last">
+                <span class="navbar-text text-light fw-semibold py-0 text-truncate d-inline-block" style="max-width: 9rem;" title="{{ request.user.username }}">{{ request.user.username }}</span>
+                <form method="post" action="{% url 'wylogowanie' %}" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-light btn-sm">Wyloguj</button>
+                </form>
+                <button class="navbar-toggler ms-1" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMenu" aria-label="Menu">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+            </div>
             <div class="collapse navbar-collapse" id="navbarMenu">
-                {% if request.user.is_authenticated %}
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
                         <a class="nav-link" href="{% url 'lista_planow' %}">Plany treningowe</a>
@@ -38,20 +45,12 @@
                         <a class="nav-link" href="{% url 'czat' %}">Asystent</a>
                     </li>
                 </ul>
-                <ul class="navbar-nav ms-auto">
-                </ul>
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <span class="nav-link text-light">{{ request.user.username }}</span>
-                    </li>
-                    <li class="nav-item">
-                        <form method="post" action="{% url 'wylogowanie' %}" class="d-inline">
-                            {% csrf_token %}
-                            <button type="submit" class="nav-link btn btn-link">Wyloguj</button>
-                        </form>
-                    </li>
-                </ul>
-                {% else %}
+            </div>
+            {% else %}
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMenu" aria-label="Menu">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarMenu">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
                         <a class="nav-link" href="{% url 'logowanie' %}">Zaloguj</a>
@@ -60,8 +59,8 @@
                         <a class="nav-link" href="{% url 'rejestracja' %}">Rejestracja</a>
                     </li>
                 </ul>
-                {% endif %}
             </div>
+            {% endif %}
         </div>
     </nav>
 

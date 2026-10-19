@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block tytul %}{{ plan.nazwa }} - GymApp{% endblock %}
 
@@ -36,7 +37,7 @@
                         <th></th>
                     </tr>
                 </thead>
-                <tbody id="cwiczenia-planu">
+                <tbody id="cwiczenia-planu" data-url-kolejnosc="{% url 'zmien_kolejnosc' plan.pk %}" data-csrf="{{ csrf_token }}">
                     {% for c in cwiczenia %}
                         <tr data-id="{{ c.pk }}">
                             <td class="uchwyt text-muted" style="cursor: grab; user-select: none;" title="Przeciągnij, aby zmienić kolejność">&equiv;</td>
@@ -64,32 +65,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
-    <script>
-        const tabela = document.getElementById('cwiczenia-planu');
-        const komunikat = document.getElementById('komunikat-kolejnosc');
-        Sortable.create(tabela, {
-            handle: '.uchwyt',
-            animation: 150,
-            onEnd: function () {
-                const identyfikatory = Array.from(tabela.querySelectorAll('tr')).map(function (wiersz) {
-                    return parseInt(wiersz.dataset.id, 10);
-                });
-                fetch('{% url "zmien_kolejnosc" plan.pk %}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': '{{ csrf_token }}'
-                    },
-                    body: JSON.stringify({ kolejnosc: identyfikatory })
-                }).then(function (odpowiedz) {
-                    if (!odpowiedz.ok) { throw new Error('blad'); }
-                    komunikat.textContent = 'Kolejność zapisana.';
-                }).catch(function () {
-                    komunikat.textContent = 'Nie udało się zapisać kolejności. Odśwież stronę.';
-                });
-            }
-        });
-    </script>
+    <script src="{% static 'tracker/plan_kolejnosc.js' %}"></script>
 {% else %}
     <div class="alert alert-info">
         Brak ćwiczeń w planie. <a href="{% url 'dodaj_cwiczenie_do_planu' plan.pk %}">Dodaj pierwsze ćwiczenie!</a>

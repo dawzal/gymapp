@@ -925,3 +925,29 @@ class ZakladkiPlanowTest(BazowyTest):
             odpowiedz,
             '<a class="nav-link" href="' + reverse('lista_planow') + '">Moje plany</a>')
         self.assertContains(odpowiedz, reverse('dodaj_plan'))
+
+
+class PasekNazwyUzytkownikaTest(BazowyTest):
+    def test_nazwa_uzytkownika_jest_poza_zwijanym_menu(self):
+        odpowiedz = self.client.get(reverse('dashboard'))
+        tresc = odpowiedz.content.decode('utf-8')
+        poczatek_menu = tresc.index('id="navbarMenu"')
+        pozycja_nazwy = tresc.index('title="ania"')
+        self.assertLess(pozycja_nazwy, poczatek_menu)
+
+    def test_wylogowanie_jest_poza_zwijanym_menu_i_dziala_przez_post(self):
+        tresc = self.client.get(reverse('dashboard')).content.decode('utf-8')
+        self.assertLess(
+            tresc.index('action="' + reverse('wylogowanie') + '"'), tresc.index('id="navbarMenu"'))
+
+    def test_nazwa_widoczna_na_kazdej_stronie_po_zalogowaniu(self):
+        for nazwa in ('dashboard', 'lista_planow', 'dziennik', 'statystyki', 'czat'):
+            with self.subTest(strona=nazwa):
+                self.assertContains(self.client.get(reverse(nazwa)), 'title="ania"')
+
+    def test_niezalogowany_widzi_logowanie_i_rejestracje(self):
+        self.client.logout()
+        odpowiedz = self.client.get(reverse('logowanie'))
+        self.assertContains(odpowiedz, 'Zaloguj')
+        self.assertContains(odpowiedz, 'Rejestracja')
+        self.assertNotContains(odpowiedz, 'Wyloguj')

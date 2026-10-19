@@ -54,10 +54,6 @@ class PlanTreningowy(models.Model):
     poziom = models.CharField(max_length=20, choices=POZIOMY, blank=True)
     data_utworzenia = models.DateTimeField(auto_now_add=True)
 
-    @property
-    def czy_gotowy(self):
-        return self.uzytkownik_id is None
-
     def kopiuj_dla(self, uzytkownik):
         kopia = PlanTreningowy.objects.create(
             nazwa=self.nazwa, opis=self.opis, uzytkownik=uzytkownik)
