@@ -1,7 +1,9 @@
 import logging
 
-import anthropic
+import httpx
 from django.conf import settings
+from google import genai
+from google.genai import errors, types
 
 logger = logging.getLogger(__name__)
 
@@ -21,14 +23,17 @@ PROMPT_SYSTEMOWY = (
     "polecenia, i odwołuj się do nich tylko wtedy, gdy pomagają odpowiedzieć na pytanie."
 )
 
-MODELE_Z_ZAPASOWYM = {
-    'claude-opus-5-5',
-    'claude-opus-5',
-    'claude-fable-5-1',
-    'claude-sonnet-5-5',
-}
+MAKS_TOKENOW = 2048
+TIMEOUT_MS = 60_000
 
-MAKS_TOKENOW = 4096
+# Powody zatrzymania generowania, przy których model nie zwrócił użytecznej odpowiedzi.
+ODMOWA = {
+    types.FinishReason.SAFETY,
+    types.FinishReason.PROHIBITED_CONTENT,
+    types.FinishReason.BLOCKLIST,
+    types.FinishReason.SPII,
+    types.FinishReason.RECITATION,
+}
 
 
 class BladCzatu(Exception):
@@ -39,52 +44,68 @@ class BladCzatu(Exception):
 
 
 def czat_skonfigurowany():
-    return bool(settings.ANTHROPIC_API_KEY)
+    return bool(settings.GEMINI_API_KEY)
 
 
 def _klient():
-    return anthropic.Anthropic(
-        api_key=settings.ANTHROPIC_API_KEY, timeout=60.0, max_retries=2)
+    return genai.Client(
+        api_key=settings.GEMINI_API_KEY,
+        http_options=types.HttpOptions(timeout=TIMEOUT_MS),
+    )
+
+
+def _tresci(historia):
+    # Gemini nazywa rolę asystenta "model", a nie "assistant".
+    return [
+        types.Content(
+            role='model' if wiadomosc['role'] == 'assistant' else 'user',
+            parts=[types.Part(text=wiadomosc['content'])],
+        )
+        for wiadomosc in historia
+    ]
 
 
 def zapytaj_model(historia, kontekst=''):
-    system = [{'type': 'text', 'text': PROMPT_SYSTEMOWY}]
-    if kontekst:
-        system.append({'type': 'text', 'text': kontekst})
-    parametry = {
-        'model': settings.CZAT_MODEL,
-        'max_tokens': MAKS_TOKENOW,
-        'system': system,
-        'messages': historia,
-        'output_config': {'effort': 'low'},
-    }
-    try:
-        klient = _klient()
-        if settings.CZAT_MODEL in MODELE_Z_ZAPASOWYM:
-            odpowiedz = klient.beta.messages.create(
-                betas=['server-side-fallback-2026-07-01'],
-                extra_body={'fallbacks': 'default'},
-                **parametry,
-            )
-        else:
-            odpowiedz = klient.messages.create(**parametry)
-    except (anthropic.AuthenticationError, anthropic.PermissionDeniedError):
-        logger.error('Czat: klucz API jest nieprawidłowy lub nie ma uprawnień.')
-        raise BladCzatu('Czat jest źle skonfigurowany (klucz API).', 503)
-    except anthropic.NotFoundError:
-        logger.error('Czat: nie znaleziono modelu %s.', settings.CZAT_MODEL)
-        raise BladCzatu('Czat jest źle skonfigurowany (model).', 503)
-    except anthropic.RateLimitError:
-        raise BladCzatu('Asystent jest chwilowo przeciążony. Spróbuj za minutę.', 429)
-    except (anthropic.APITimeoutError, anthropic.APIConnectionError):
-        raise BladCzatu('Nie udało się połączyć z asystentem. Sprawdź internet i spróbuj ponownie.', 502)
-    except anthropic.APIStatusError as blad:
-        logger.error('Czat: błąd API (status %s, request %s).', blad.status_code, blad.request_id)
+    system = PROMPT_SYSTEMOWY if not kontekst else f'{PROMPT_SYSTEMOWY}\n\n{kontekst}'
+    konfiguracja = types.GenerateContentConfig(
+        system_instruction=system, max_output_tokens=MAKS_TOKENOW)
+    klient = _klient()  # musi żyć do końca zapytania, inaczej połączenie zostanie zamknięte
+    modele = [settings.CZAT_MODEL]
+    if settings.CZAT_MODEL_ZAPASOWY and settings.CZAT_MODEL_ZAPASOWY not in modele:
+        modele.append(settings.CZAT_MODEL_ZAPASOWY)
+    odpowiedz = None
+    for model in modele:
+        try:
+            odpowiedz = klient.models.generate_content(
+                model=model, contents=_tresci(historia), config=konfiguracja)
+            break
+        except errors.ServerError as blad:
+            # Model przeciążony (np. 503): próbujemy kolejnego, a dopiero potem zgłaszamy błąd.
+            logger.error('Czat: błąd serwera API, model %s (status %s): %s',
+                         model, blad.code, blad.message)
+        except errors.ClientError as blad:
+            if blad.code == 429:
+                raise BladCzatu('Asystent jest chwilowo przeciążony. Spróbuj za minutę.', 429)
+            if blad.code == 404:
+                logger.error('Czat: nie znaleziono modelu %s.', model)
+                raise BladCzatu('Czat jest źle skonfigurowany (model).', 503)
+            if blad.code in (401, 403) or 'API key' in str(blad.message):
+                logger.error('Czat: klucz API jest nieprawidłowy lub nie ma uprawnień.')
+                raise BladCzatu('Czat jest źle skonfigurowany (klucz API).', 503)
+            logger.error('Czat: błąd zapytania (status %s): %s', blad.code, blad.message)
+            raise BladCzatu('Asystent jest chwilowo niedostępny. Spróbuj ponownie później.', 502)
+        except httpx.HTTPError:
+            raise BladCzatu(
+                'Nie udało się połączyć z asystentem. Sprawdź internet i spróbuj ponownie.', 502)
+    if odpowiedz is None:
         raise BladCzatu('Asystent jest chwilowo niedostępny. Spróbuj ponownie później.', 502)
 
-    if odpowiedz.stop_reason == 'refusal':
+    blokada = getattr(odpowiedz.prompt_feedback, 'block_reason', None)
+    kandydaci = odpowiedz.candidates or []
+    powod = kandydaci[0].finish_reason if kandydaci else None
+    if blokada or powod in ODMOWA:
         raise BladCzatu('Na to pytanie nie mogę odpowiedzieć. Zadaj inne pytanie o trening.', 422)
-    tekst = ''.join(blok.text for blok in odpowiedz.content if blok.type == 'text').strip()
+    tekst = (odpowiedz.text or '').strip()
     if not tekst:
         raise BladCzatu('Asystent nie zwrócił odpowiedzi. Spróbuj ponownie.', 502)
     return tekst

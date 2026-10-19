@@ -15,9 +15,13 @@ from pathlib import Path
 
 from django.contrib.messages import constants as message_constants
 from django.core.exceptions import ImproperlyConfigured
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Wczytuje zmienne z pliku .env (jeśli istnieje); plik jest w .gitignore i nie trafia do repozytorium.
+load_dotenv(BASE_DIR / '.env')
 
 
 # Quick-start development settings - unsuitable for production
@@ -141,8 +145,9 @@ LOGOUT_REDIRECT_URL = 'logowanie'
 
 MESSAGE_TAGS = {message_constants.ERROR: 'danger'}
 
-ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
-CZAT_MODEL = os.environ.get('CZAT_MODEL', 'claude-opus-5-5')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+CZAT_MODEL = os.environ.get('CZAT_MODEL', 'gemini-flash-latest')
+CZAT_MODEL_ZAPASOWY = os.environ.get('CZAT_MODEL_ZAPASOWY', 'gemini-flash-lite-latest')
 CZAT_DZIENNY_LIMIT = int(os.environ.get('CZAT_DZIENNY_LIMIT', '30'))
 CZAT_MAKS_ZNAKOW = 1000
 CZAT_HISTORIA = 20

@@ -1,6 +1,6 @@
 # GymApp
 
-Aplikacja webowa w Django do planowania treningów siłowych, prowadzenia dziennika treningowego i analizy postępów. Zawiera też asystenta treningowego opartego na Claude API.
+Aplikacja webowa w Django do planowania treningów siłowych, prowadzenia dziennika treningowego i analizy postępów. Zawiera też asystenta treningowego opartego na Google Gemini API (darmowy poziom).
 
 ## Funkcje
 
@@ -22,7 +22,7 @@ Każdy użytkownik ma dostęp wyłącznie do własnych planów, dziennika i hist
 ## Wymagania
 
 - Python 3.12 lub nowszy
-- Django 6.0 oraz pakiet `anthropic` (patrz `requirements.txt`)
+- Django 6.0 oraz pakiety `google-genai` i `python-dotenv` (patrz `requirements.txt`)
 
 ## Uruchomienie lokalne
 
@@ -48,15 +48,15 @@ Testy używają osobnej, tymczasowej bazy danych i nie zmieniają `db.sqlite3`.
 
 ## Konfiguracja
 
-Ustawienia są pobierane ze zmiennych środowiskowych:
+Ustawienia są pobierane ze zmiennych środowiskowych lub z pliku `.env` w głównym folderze projektu (wzór: `.env.example`). Plik `.env` nie trafia do repozytorium.
 
 | Zmienna | Domyślnie | Opis |
 |---|---|---|
 | `DJANGO_DEBUG` | `1` | `0` wyłącza tryb debugowania |
 | `DJANGO_SECRET_KEY` | klucz deweloperski | wymagany, gdy `DJANGO_DEBUG=0` |
 | `DJANGO_ALLOWED_HOSTS` | `localhost,127.0.0.1` | lista hostów oddzielona przecinkami |
-| `ANTHROPIC_API_KEY` | brak | klucz API asystenta; bez niego czat jest wyłączony |
-| `CZAT_MODEL` | `claude-opus-5-5` | model używany przez asystenta |
+| `GEMINI_API_KEY` | brak | darmowy klucz z Google AI Studio; bez niego czat jest wyłączony |
+| `CZAT_MODEL` | `gemini-flash-latest` | model używany przez asystenta |
 | `CZAT_DZIENNY_LIMIT` | `30` | maksymalna liczba wiadomości użytkownika na dobę |
 
 ## Struktura projektu

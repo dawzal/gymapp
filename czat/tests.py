@@ -3,9 +3,9 @@ from datetime import date
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-import anthropic
-import httpx2
+import httpx
 from django.contrib.auth.models import User
+from google.genai import errors, types
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -17,12 +17,15 @@ from .kontekst import zbuduj_kontekst
 from .models import WiadomoscCzatu
 
 
-def odpowiedz_api(tekst='Odpowiedź', stop='end_turn'):
+def odpowiedz_api(tekst='Odpowiedź', powod=types.FinishReason.STOP, blokada=None):
     return SimpleNamespace(
-        stop_reason=stop, content=[SimpleNamespace(type='text', text=tekst)])
+        text=tekst,
+        candidates=[SimpleNamespace(finish_reason=powod)],
+        prompt_feedback=SimpleNamespace(block_reason=blokada),
+    )
 
 
-@override_settings(ANTHROPIC_API_KEY='klucz-testowy', CZAT_DZIENNY_LIMIT=30)
+@override_settings(GEMINI_API_KEY='klucz-testowy', CZAT_DZIENNY_LIMIT=30)
 class CzatBazowyTest(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -51,10 +54,10 @@ class StronaCzatuTest(CzatBazowyTest):
         self.assertContains(odpowiedz, 'id="formularz-czatu"')
         self.assertEqual(odpowiedz.context['pozostalo'], 30)
 
-    @override_settings(ANTHROPIC_API_KEY='')
+    @override_settings(GEMINI_API_KEY='')
     def test_bez_klucza_pokazuje_komunikat_i_blokuje_formularz(self):
         odpowiedz = self.client.get(reverse('czat'))
-        self.assertContains(odpowiedz, 'ANTHROPIC_API_KEY')
+        self.assertContains(odpowiedz, 'GEMINI_API_KEY')
         self.assertFalse(odpowiedz.context['skonfigurowany'])
 
     def test_pokazuje_tylko_wlasna_historie(self):
@@ -140,7 +143,7 @@ class WysylanieWiadomosciTest(CzatBazowyTest):
         self.assertEqual(self.wyslij('b').status_code, 200)
 
     @patch('czat.views.zapytaj_model')
-    @override_settings(ANTHROPIC_API_KEY='')
+    @override_settings(GEMINI_API_KEY='')
     def test_bez_klucza_zwraca_503_i_nie_wola_api(self, atrapa):
         self.assertEqual(self.wyslij().status_code, 503)
         atrapa.assert_not_called()
@@ -205,104 +208,122 @@ class KontekstTest(CzatBazowyTest):
         self.assertLessEqual(len(zbuduj_kontekst(self.ania)), 3000)
 
 
-def blad_http(klasa, kod):
-    zadanie = httpx2.Request('POST', 'https://api.anthropic.com/v1/messages')
-    odpowiedz = httpx2.Response(kod, request=zadanie, headers={'request-id': 'req_test'})
-    return klasa('blad', response=odpowiedz, body=None)
+def blad_api(klasa, kod, komunikat='blad'):
+    return klasa(kod, {'error': {'code': kod, 'message': komunikat, 'status': 'BLAD'}})
 
 
-@override_settings(ANTHROPIC_API_KEY='klucz-testowy')
+def atrapa_klienta(wynik=None, wyjatek=None):
+    atrapa = MagicMock()
+    generuj = atrapa.models.generate_content
+    if wyjatek is not None:
+        generuj.side_effect = wyjatek
+    else:
+        generuj.return_value = wynik
+    return atrapa
+
+
+@override_settings(
+    GEMINI_API_KEY='klucz-testowy', CZAT_MODEL='gemini-test', CZAT_MODEL_ZAPASOWY='gemini-zapas')
 class KlientApiTest(TestCase):
-    historia = [{'role': 'user', 'content': 'Cześć'}]
+    historia = [
+        {'role': 'user', 'content': 'Cześć'},
+        {'role': 'assistant', 'content': 'Hej!'},
+        {'role': 'user', 'content': 'Jak robić martwy ciąg?'},
+    ]
 
-    @override_settings(CZAT_MODEL='claude-opus-5-5')
-    def test_model_z_zapasowym_uzywa_endpointu_beta_i_fallbacks(self):
-        atrapa = MagicMock()
-        atrapa.beta.messages.create.return_value = odpowiedz_api('Hej')
+    def test_przekazuje_model_historie_i_prompt_systemowy(self):
+        atrapa = atrapa_klienta(odpowiedz_api('Hej'))
         with patch('czat.klient._klient', return_value=atrapa):
-            tekst = klient.zapytaj_model(self.historia, 'Kontekst treningowy')
+            tekst = klient.zapytaj_model(self.historia)
         self.assertEqual(tekst, 'Hej')
-        parametry = atrapa.beta.messages.create.call_args.kwargs
-        self.assertEqual(parametry['model'], 'claude-opus-5-5')
-        self.assertEqual(parametry['betas'], ['server-side-fallback-2026-07-01'])
-        self.assertEqual(parametry['extra_body'], {'fallbacks': 'default'})
-        self.assertEqual(parametry['messages'], self.historia)
-        self.assertEqual(parametry['max_tokens'], 4096)
-        self.assertEqual(parametry['output_config'], {'effort': 'low'})
-        self.assertEqual(len(parametry['system']), 2)
-        self.assertEqual(parametry['system'][1]['text'], 'Kontekst treningowy')
-        atrapa.messages.create.assert_not_called()
+        parametry = atrapa.models.generate_content.call_args.kwargs
+        self.assertEqual(parametry['model'], 'gemini-test')
+        self.assertEqual(
+            [(tresc.role, tresc.parts[0].text) for tresc in parametry['contents']],
+            [('user', 'Cześć'), ('model', 'Hej!'), ('user', 'Jak robić martwy ciąg?')])
+        self.assertEqual(parametry['config'].system_instruction, klient.PROMPT_SYSTEMOWY)
+        self.assertEqual(parametry['config'].max_output_tokens, klient.MAKS_TOKENOW)
 
-    @override_settings(CZAT_MODEL='claude-haiku-5-5')
-    def test_model_bez_zapasowego_uzywa_zwyklego_endpointu(self):
-        atrapa = MagicMock()
-        atrapa.messages.create.return_value = odpowiedz_api('Hej')
+    def test_kontekst_treningowy_trafia_do_instrukcji_systemowej(self):
+        atrapa = atrapa_klienta(odpowiedz_api())
         with patch('czat.klient._klient', return_value=atrapa):
-            klient.zapytaj_model(self.historia)
-        atrapa.beta.messages.create.assert_not_called()
-        parametry = atrapa.messages.create.call_args.kwargs
-        self.assertEqual(parametry['model'], 'claude-haiku-5-5')
-        self.assertNotIn('extra_body', parametry)
-        self.assertEqual(len(parametry['system']), 1)
+            klient.zapytaj_model(self.historia, 'Kontekst treningowy')
+        instrukcja = atrapa.models.generate_content.call_args.kwargs['config'].system_instruction
+        self.assertTrue(instrukcja.startswith(klient.PROMPT_SYSTEMOWY))
+        self.assertTrue(instrukcja.endswith('Kontekst treningowy'))
 
     def test_odmowa_modelu_daje_czytelny_blad(self):
-        atrapa = MagicMock()
-        atrapa.beta.messages.create.return_value = odpowiedz_api('', stop='refusal')
-        with patch('czat.klient._klient', return_value=atrapa):
-            with self.assertRaises(BladCzatu) as kontekst:
-                klient.zapytaj_model(self.historia)
-        self.assertEqual(kontekst.exception.status, 422)
+        for odpowiedz in (
+            odpowiedz_api('', powod=types.FinishReason.SAFETY),
+            odpowiedz_api('', blokada='SAFETY'),
+        ):
+            with self.subTest(odpowiedz=odpowiedz):
+                with patch('czat.klient._klient', return_value=atrapa_klienta(odpowiedz)):
+                    with self.assertRaises(BladCzatu) as kontekst:
+                        klient.zapytaj_model(self.historia)
+                self.assertEqual(kontekst.exception.status, 422)
 
     def test_pusta_odpowiedz_daje_blad(self):
-        atrapa = MagicMock()
-        atrapa.beta.messages.create.return_value = SimpleNamespace(
-            stop_reason='end_turn', content=[])
-        with patch('czat.klient._klient', return_value=atrapa):
-            with self.assertRaises(BladCzatu):
+        pusta = SimpleNamespace(
+            text=None, candidates=None, prompt_feedback=SimpleNamespace(block_reason=None))
+        with patch('czat.klient._klient', return_value=atrapa_klienta(pusta)):
+            with self.assertRaises(BladCzatu) as kontekst:
                 klient.zapytaj_model(self.historia)
-
-    def test_laczy_tylko_bloki_tekstowe(self):
-        atrapa = MagicMock()
-        atrapa.beta.messages.create.return_value = SimpleNamespace(
-            stop_reason='end_turn',
-            content=[
-                SimpleNamespace(type='thinking', thinking=''),
-                SimpleNamespace(type='text', text='Część 1. '),
-                SimpleNamespace(type='text', text='Część 2.'),
-            ])
-        with patch('czat.klient._klient', return_value=atrapa):
-            self.assertEqual(klient.zapytaj_model(self.historia), 'Część 1. Część 2.')
+        self.assertEqual(kontekst.exception.status, 502)
 
     def test_mapowanie_bledow_api(self):
-        zadanie = httpx2.Request('POST', 'https://api.anthropic.com/v1/messages')
         przypadki = [
-            (blad_http(anthropic.AuthenticationError, 401), 503),
-            (blad_http(anthropic.PermissionDeniedError, 403), 503),
-            (blad_http(anthropic.NotFoundError, 404), 503),
-            (blad_http(anthropic.RateLimitError, 429), 429),
-            (blad_http(anthropic.InternalServerError, 500), 502),
-            (anthropic.APIConnectionError(request=zadanie), 502),
-            (anthropic.APITimeoutError(request=zadanie), 502),
+            (blad_api(errors.ClientError, 401), 503),
+            (blad_api(errors.ClientError, 403), 503),
+            (blad_api(errors.ClientError, 400, 'API key not valid'), 503),
+            (blad_api(errors.ClientError, 404), 503),
+            (blad_api(errors.ClientError, 429), 429),
+            (blad_api(errors.ClientError, 400, 'Niepoprawne zapytanie'), 502),
+            (blad_api(errors.ServerError, 500), 502),
+            (blad_api(errors.ServerError, 503), 502),
+            (httpx.ConnectError('brak sieci'), 502),
+            (httpx.ReadTimeout('timeout'), 502),
         ]
         for wyjatek, oczekiwany in przypadki:
-            with self.subTest(wyjatek=type(wyjatek).__name__):
-                atrapa = MagicMock()
-                atrapa.beta.messages.create.side_effect = wyjatek
-                with patch('czat.klient._klient', return_value=atrapa):
+            with self.subTest(wyjatek=repr(wyjatek)):
+                with patch('czat.klient._klient', return_value=atrapa_klienta(wyjatek=wyjatek)):
                     with self.assertRaises(BladCzatu) as kontekst:
                         klient.zapytaj_model(self.historia)
                 self.assertEqual(kontekst.exception.status, oczekiwany)
 
-    def test_klucz_nie_trafia_do_komunikatow_o_bledach(self):
+    def test_przeciazony_model_przelacza_na_zapasowy(self):
         atrapa = MagicMock()
-        atrapa.beta.messages.create.side_effect = blad_http(anthropic.AuthenticationError, 401)
+        atrapa.models.generate_content.side_effect = [
+            blad_api(errors.ServerError, 503), odpowiedz_api('Z zapasowego')]
         with patch('czat.klient._klient', return_value=atrapa):
+            self.assertEqual(klient.zapytaj_model(self.historia), 'Z zapasowego')
+        modele = [w.kwargs['model'] for w in atrapa.models.generate_content.call_args_list]
+        self.assertEqual(modele, ['gemini-test', 'gemini-zapas'])
+
+    def test_oba_modele_przeciazone_daje_blad_502(self):
+        atrapa = atrapa_klienta(wyjatek=blad_api(errors.ServerError, 503))
+        with patch('czat.klient._klient', return_value=atrapa):
+            with self.assertRaises(BladCzatu) as kontekst:
+                klient.zapytaj_model(self.historia)
+        self.assertEqual(kontekst.exception.status, 502)
+        self.assertEqual(atrapa.models.generate_content.call_count, 2)
+
+    def test_klucz_nie_trafia_do_komunikatow_o_bledach(self):
+        wyjatek = blad_api(errors.ClientError, 400, 'API key not valid: klucz-testowy')
+        with patch('czat.klient._klient', return_value=atrapa_klienta(wyjatek=wyjatek)):
             with self.assertRaises(BladCzatu) as kontekst:
                 klient.zapytaj_model(self.historia)
         self.assertNotIn('klucz-testowy', kontekst.exception.komunikat)
 
-    @override_settings(ANTHROPIC_API_KEY='')
+    def test_klient_ma_ustawiony_klucz_i_limit_czasu(self):
+        with patch('czat.klient.genai.Client') as atrapa:
+            klient._klient()
+        parametry = atrapa.call_args.kwargs
+        self.assertEqual(parametry['api_key'], 'klucz-testowy')
+        self.assertEqual(parametry['http_options'].timeout, klient.TIMEOUT_MS)
+
+    @override_settings(GEMINI_API_KEY='')
     def test_skonfigurowany_zalezy_od_klucza(self):
         self.assertFalse(klient.czat_skonfigurowany())
-        with override_settings(ANTHROPIC_API_KEY='x'):
+        with override_settings(GEMINI_API_KEY='x'):
             self.assertTrue(klient.czat_skonfigurowany())
